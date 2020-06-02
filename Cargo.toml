@@ -1,5 +1,5 @@
 [package]
-name = "tresh"
+name = "thresh"
 version = "0.1.0"
 authors = ["gillchristian <gillchristiang@gmail.com>", "ndelvalle <nicolas.delvalle@gmail.com>"]
 edition = "2018"
@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 actix-web = "2.0.0"
 actix-rt = "1.1.1"
+toml = "0.5"
+serde = "1.0"
