@@ -27,7 +27,7 @@ struct PushEvent {
 #[derive(Debug, Deserialize, Serialize)]
 struct Project {
     // TODO: add branch (pattern?) to filter on
-    // TODO: add env option
+    // TODO: add option to populate env
     username: String,
     repository: String,
     path: String,
@@ -84,7 +84,7 @@ async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
     // TODO: where should Threshfile be by default ? 
     // TODO: accept flag for Threshfile location
     let contents =
-        fs::read_to_string("./Threshfile").expect("Something went wrong reading the file");
+        fs::read_to_string("./.threshfile").expect("Something went wrong reading the file");
 
     let config: Config = toml::from_str(&contents).unwrap();
 
