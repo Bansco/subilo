@@ -1,0 +1,46 @@
+[[projects]]
+
+username = "test"
+
+repository = "test"
+
+path = "~/dev/tsplay"
+
+commands = [
+  "ls",
+  "echo foo bar baz",
+  "pwd",
+  # "sleep 5",
+  # "exit 137",
+]
+
+[[projects]]
+
+username = "gillchristian"
+
+repository = "tsplay.dev"
+
+path = "~/dev/tsplay"
+
+commands = [
+  # "docker pull gillchristian/tsplay:latest",
+  # "docker-compose down",
+  # "docker-compose up -d",
+  "ls",
+  "echo foo bar baz",
+  "pwd",
+]
+
+[[projects]]
+
+username = "ndelvalle"
+
+repository = "sarasa"
+
+path = "~/code/sarasa"
+
+commands = [
+  "git pull",
+  "cargo build",
+  "cargo run --release",
+]
