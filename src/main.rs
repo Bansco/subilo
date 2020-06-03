@@ -32,16 +32,12 @@ async fn webhook() -> impl Responder {
     HttpResponse::Ok()
 }
 
-pub async fn start_server(address: &str) -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(index).service(webhook))
-        .bind(address)?
-        .run()
-        .await
-}
-
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    start_server("127.0.0.1:9000").await
+        HttpServer::new(|| App::new().service(index).service(webhook))
+        .bind("127.0.0.1:9000")?
+        .run()
+        .await
 }
 
 #[cfg(test)]
