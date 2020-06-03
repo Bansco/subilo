@@ -1,6 +1,7 @@
 use actix_web::{post, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process::{Command, Output, Stdio};
 use std::str;
 
@@ -36,7 +37,7 @@ struct Project {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
-    // TODO: add port to run on
+    port: u16,
     projects: Vec<Project>,
 }
 
@@ -81,7 +82,7 @@ fn run_project(project: &Project) -> String {
 #[post("/webhook")]
 async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
     // TODO: 400? 500? on missing Threshfile ?
-    // TODO: where should Threshfile be by default ? 
+    // TODO: where should Threshfile be by default ?
     // TODO: accept flag for Threshfile location
     let contents =
         fs::read_to_string("./.threshfile").expect("Something went wrong reading the file");
@@ -102,8 +103,17 @@ async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
+    let contents =
+        fs::read_to_string("./.threshfile").expect("Something went wrong reading the file");
+
+    let config: Config = toml::from_str(&contents).unwrap();
+
+    let localhost_v4 = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+
+    let host = SocketAddr::new(localhost_v4, config.port);
+
     HttpServer::new(|| App::new().service(webhook))
-        .bind("127.0.0.1:9000")?
+        .bind(host)?
         .run()
         .await
 }
