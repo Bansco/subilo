@@ -1,0 +1,7 @@
+indent_style = "Block"
+reorder_imports = true
+brace_style = "SameLineWhere"
+control_brace_style = "AlwaysSameLine"
+fn_single_line = true
+wrap_comments = true
+edition = "2018"
