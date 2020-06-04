@@ -1,4 +1,7 @@
+use actix_web::middleware::Logger;
 use actix_web::{post, web, App, HttpResponse, HttpServer, Responder};
+use chrono::Utc;
+use env_logger;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -20,8 +23,9 @@ struct Repository {
 // https://developer.github.com/webhooks/event-payloads/#push
 #[derive(Debug, Deserialize, Serialize)]
 struct PushEvent {
+    zen: Option<String>,
     #[serde(rename(serialize = "ref", deserialize = "ref"))]
-    ref_: String,
+    ref_: Option<String>,
     repository: Repository,
     sender: GitHubUser,
 }
@@ -39,6 +43,7 @@ struct Project {
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
     port: u16,
+    run_job_on_ping: Option<bool>,
     projects: Vec<Project>,
 }
 
@@ -49,23 +54,17 @@ fn run_command(path: &String, command: &String) -> Output {
         .arg(command)
         .stdout(Stdio::piped())
         .current_dir(path)
-        .env_clear()
         .spawn()
         .expect("failed to execute child")
         .wait_with_output()
         .expect("failed to wait on child")
 }
 
-fn run_project(project: &Project) {
-    println!("Starting to run project {} commands", {
-        &project.repository
-    });
+fn run_project(project: &Project) -> String {
+    let mut result: String = "".to_owned();
 
     for command in &project.commands {
-        println!(
-            "Running command \"{}\" at \"{}\" path",
-            &command, &project.path
-        );
+        result.push_str(&format!("$ {}\n", &command));
 
         let path = shellexpand::tilde(&project.path).into_owned();
         let output = run_command(&path, &command);
@@ -73,41 +72,62 @@ fn run_project(project: &Project) {
         // TODO: Stream command stdout to log file instead of parse and log the
         //       whole response
         match str::from_utf8(&output.stdout) {
-            Ok(stdout) => println!("{}", stdout),
-            Err(error) => println!("There was a problem parsing stdout: {:?}", error),
+            Ok(stdout) => result.push_str(&stdout),
+            Err(error) => result.push_str(&format!("Failed to parse stdout: {:?}\n", error)),
         }
 
-        if !output.status.success() {
-            match output.status.code() {
-                Some(code) => println!("Exit {}", code),
-                None => println!("Process terminated by signal"),
-            }
+        match (output.status.success(), output.status.code()) {
+            (true, _) => (),
+            (_, Some(code)) => result.push_str(&format!("Exit {}\n", code)),
+            (_, None) => result.push_str(&format!("Process terminated by signal\n")),
         }
     }
+
+    result
 }
 
+// TODO: 400? 500? on missing Threshfile ?
+// TODO: where should Threshfile be by default ?
+// TODO: accept flag for Threshfile location
+// TODO: respond right away and run 'job' asynchronously after
+// TODO: write logs to file instead
 #[post("/webhook")]
 async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
-    // TODO: 400? 500? on missing Threshfile ?
-    // TODO: where should Threshfile be by default ?
-    // TODO: accept flag for Threshfile location
+    let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+    let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
+
+    let is_ping = info.zen.is_some();
+    let run_job_on_ping = config.run_job_on_ping.map_or(false, |x| x);
+
+    if is_ping && !run_job_on_ping {
+        return HttpResponse::Ok().body("200 Ok");
+    }
 
     thread::spawn(move || {
-        let threshfile =
-            fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
-        let config: Config = toml::from_str(&threshfile).expect("Failed parsing threshfile file");
+        info.ref_
+            .as_ref()
+            .filter(|ref_| ref_ == &"refs/heads/master")
+            .and_then(|_| {
+                config.projects.iter().find(|x| {
+                    x.username == info.repository.owner.login
+                        && x.repository == info.repository.name
+                })
+            })
+            .map(|project| {
+                let output = run_project(&project);
 
-        let maybe_project = config.projects.iter().find(|x| {
-            x.username == info.repository.owner.login && x.repository == info.repository.name
-        });
+                let logfile = format!(
+                    "./log/{}_{}_{}.log",
+                    Utc::now().format("%Y_%m_%d_%H_%M_%S").to_string(),
+                    info.repository.owner.login,
+                    info.repository.name,
+                );
 
-        match maybe_project {
-            Some(project) => run_project(&project),
-            None => println!("Project not found"),
-        }
+                fs::create_dir_all("./log").and_then(|_| fs::write(logfile, output.as_bytes()))
+            });
     });
 
-    HttpResponse::Ok()
+    HttpResponse::Ok().body("200 Ok")
 }
 
 #[actix_rt::main]
@@ -118,7 +138,10 @@ async fn main() -> std::io::Result<()> {
     let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
     let socket = SocketAddr::new(localhost, config.port);
 
-    HttpServer::new(|| App::new().service(webhook))
+    std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::init();
+
+    HttpServer::new(|| App::new().wrap(Logger::default()).service(webhook))
         .bind(socket)?
         .run()
         .await
