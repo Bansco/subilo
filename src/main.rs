@@ -54,7 +54,6 @@ fn run_command(path: &String, command: &String) -> Output {
         .arg(command)
         .stdout(Stdio::piped())
         .current_dir(path)
-        .env_clear()
         .spawn()
         .expect("failed to execute child")
         .wait_with_output()
