@@ -124,7 +124,7 @@ async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
                     info.repository.name,
                 );
 
-                fs::write(logfile, output.as_bytes())
+                fs::create_dir_all("./log").and_then(|_| fs::write(logfile, output.as_bytes()))
             });
     });
 
