@@ -1,4 +1,4 @@
-use actix_web::{post, App, HttpResponse, HttpServer, Responder};
+use actix_web::{post, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -87,8 +87,7 @@ fn run_project(project: &Project) {
 }
 
 #[post("/webhook")]
-// async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
-async fn webhook() -> impl Responder {
+async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
     // TODO: 400? 500? on missing Threshfile ?
     // TODO: where should Threshfile be by default ?
     // TODO: accept flag for Threshfile location
@@ -98,14 +97,9 @@ async fn webhook() -> impl Responder {
             fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
         let config: Config = toml::from_str(&threshfile).expect("Failed parsing threshfile file");
 
-        // let maybe_project = config.projects.iter().find(|x| {
-        //     x.username == info.repository.owner.login && x.repository == info.repository.name
-        // });
-
-        let maybe_project = config
-            .projects
-            .iter()
-            .find(|x| x.username == "test" && x.repository == "test");
+        let maybe_project = config.projects.iter().find(|x| {
+            x.username == info.repository.owner.login && x.repository == info.repository.name
+        });
 
         match maybe_project {
             Some(project) => run_project(&project),
