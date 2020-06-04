@@ -79,8 +79,8 @@ fn run_project(project: &Project) -> String {
 
         match (output.status.success(), output.status.code()) {
             (true, _) => (),
-            (_, Some(code)) => result.push_str(&format!("Exit {}", code)),
-            (_, None) => result.push_str(&format!("Process terminated by signal")),
+            (_, Some(code)) => result.push_str(&format!("Exit {}\n", code)),
+            (_, None) => result.push_str(&format!("Process terminated by signal\n")),
         }
     }
 
