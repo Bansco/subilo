@@ -1,29 +1,21 @@
 port = 8080
 
 [[projects]]
-
 username = "test"
-
 repository = "test"
-
-path = "~/dev/tsplay"
-
+path = "~/"
 commands = [
   "ls",
   "echo foo bar baz",
   "pwd",
-  # "sleep 5",
+  "echo sleeping && sleep 2",
   # "exit 137",
 ]
 
 [[projects]]
-
 username = "gillchristian"
-
 repository = "tsplay.dev"
-
 path = "~/dev/tsplay"
-
 commands = [
   # "docker pull gillchristian/tsplay:latest",
   # "docker-compose down",
@@ -34,13 +26,9 @@ commands = [
 ]
 
 [[projects]]
-
 username = "ndelvalle"
-
 repository = "sarasa"
-
 path = "~/code/sarasa"
-
 commands = [
   "git pull",
   "cargo build",

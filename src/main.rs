@@ -1,9 +1,10 @@
-use actix_web::{post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{post, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process::{Command, Output, Stdio};
 use std::str;
+use std::thread;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct GitHubUser {
@@ -55,65 +56,76 @@ fn run_command(path: &String, command: &String) -> Output {
         .expect("failed to wait on child")
 }
 
-fn run_project(project: &Project) -> String {
-    let mut result: String = "".to_owned();
+fn run_project(project: &Project) {
+    println!("Starting to run project {} commands", {
+        &project.repository
+    });
 
     for command in &project.commands {
-        let path = shellexpand::tilde(&project.path).into_owned();
+        println!(
+            "Running command \"{}\" at \"{}\" path",
+            &command, &project.path
+        );
 
+        let path = shellexpand::tilde(&project.path).into_owned();
         let output = run_command(&path, &command);
 
-        result.push_str(&format!("$ {}\n", command));
-
-        result.push_str(&format!("{}\n", str::from_utf8(&output.stdout).unwrap()));
+        // TODO: Stream command stdout to log file instead of parse and log the
+        //       whole response
+        match str::from_utf8(&output.stdout) {
+            Ok(stdout) => println!("{}", stdout),
+            Err(error) => println!("There was a problem parsing stdout: {:?}", error),
+        }
 
         if !output.status.success() {
-            result.push_str(&match output.status.code() {
-                Some(code) => format!("Exit {}", code),
-                None => format!("Process terminated by signal"),
-            });
-            break;
+            match output.status.code() {
+                Some(code) => println!("Exit {}", code),
+                None => println!("Process terminated by signal"),
+            }
         }
     }
-
-    result
 }
 
 #[post("/webhook")]
-async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
+// async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
+async fn webhook() -> impl Responder {
     // TODO: 400? 500? on missing Threshfile ?
     // TODO: where should Threshfile be by default ?
     // TODO: accept flag for Threshfile location
-    let contents =
-        fs::read_to_string("./.threshfile").expect("Something went wrong reading the file");
 
-    let config: Config = toml::from_str(&contents).unwrap();
+    thread::spawn(move || {
+        let threshfile =
+            fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+        let config: Config = toml::from_str(&threshfile).expect("Failed parsing threshfile file");
 
-    let maybe_project = config.projects.iter().find(|x| {
-        x.username == info.repository.owner.login && x.repository == info.repository.name
+        // let maybe_project = config.projects.iter().find(|x| {
+        //     x.username == info.repository.owner.login && x.repository == info.repository.name
+        // });
+
+        let maybe_project = config
+            .projects
+            .iter()
+            .find(|x| x.username == "test" && x.repository == "test");
+
+        match maybe_project {
+            Some(project) => run_project(&project),
+            None => println!("Project not found"),
+        }
     });
 
-    match maybe_project {
-        // TODO: respond right away and run 'job' asynchronously after
-        // TODO: write logs to file instead
-        Some(project) => HttpResponse::Ok().body(run_project(&project)),
-        None => HttpResponse::NotFound().body("404 Not Found"),
-    }
+    HttpResponse::Ok()
 }
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    let contents =
-        fs::read_to_string("./.threshfile").expect("Something went wrong reading the file");
+    let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+    let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
 
-    let config: Config = toml::from_str(&contents).unwrap();
-
-    let localhost_v4 = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-
-    let host = SocketAddr::new(localhost_v4, config.port);
+    let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+    let socket = SocketAddr::new(localhost, config.port);
 
     HttpServer::new(|| App::new().service(webhook))
-        .bind(host)?
+        .bind(socket)?
         .run()
         .await
 }
