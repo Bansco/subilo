@@ -46,8 +46,8 @@ struct Project {
 impl Project {
     fn to_string(&self) -> String {
         format!(
-            "Project {} using branch {} at path {} \n",
-            &self.repository, &self.branch, &self.path
+            "Project {} on branch {} at path {}\n",
+            self.repository, self.branch, self.path
         )
     }
 }
@@ -71,6 +71,17 @@ fn run_command(path: &String, command: &String) -> Output {
         .expect("failed to execute child")
         .wait_with_output()
         .expect("failed to wait on child")
+}
+
+fn job_name(repository: &String) -> String {
+    let repository = repository.replace("/", "-");
+    let now = Utc::now().format("%Y_%m_%d__%H_%M_%S").to_string();
+    format!("{}_{}", repository, now)
+}
+
+fn job_logs(job: &String, log_dir: &String) -> String {
+    let log_dir = shellexpand::tilde(&log_dir).into_owned();
+    format!("{}/{}.log", log_dir, job)
 }
 
 fn run_project(project: Project, mut log: std::fs::File) {
@@ -115,9 +126,6 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
     let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
     let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
 
-    // In case the user updated the log dir path we make sure it exists
-    fs::create_dir_all(&config.log).expect("Failed creating logs directory");
-
     let is_ping = body.zen.is_some();
     let run_job_on_ping = &config.run_job_on_ping.map_or(false, |x| x);
 
@@ -126,11 +134,14 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
         return HttpResponse::Ok().body("200 Ok");
     }
 
-    // TODO: Also check branch
     let project = config
         .projects
         .into_iter()
-        .find(|project| project.repository == body.repository.full_name);
+        .find(|project| project.repository == body.repository.full_name)
+        .filter(|project| match &body.ref_ {
+            Some(ref_) => ref_.ends_with(&project.branch).to_owned(),
+            None => false,
+        });
 
     if project.is_none() {
         warn!(
@@ -141,15 +152,21 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
     }
 
     let project = project.unwrap();
-    let repository_name = &body.repository.full_name.replace("/", "-");
-    let now = Utc::now().format("%Y_%m_%d_%H_%M_%S").to_string();
-    let file_name = format!("{}/{}_{}.log", &config.log, now, repository_name);
-    let log = fs::File::create(file_name).expect("Failed creating log file");
 
-    debug!("Starting to process {} project", &project.repository);
-    thread::spawn(move || run_project(project, log));
+    let job_name = job_name(&body.repository.full_name);
+    let file_name = job_logs(&job_name, &config.log);
 
-    HttpResponse::Ok().body("200 Ok")
+    // Make sure logs directory exists
+    let log = fs::create_dir_all(&config.log)
+        .and_then(|_| fs::File::create(file_name))
+        .expect("Failed creating log file");
+
+    thread::spawn(move || {
+        debug!("Starting to process {} project", &project.repository);
+        run_project(project, log)
+    });
+
+    HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_name))
 }
 
 #[actix_rt::main]
