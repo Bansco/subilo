@@ -1,5 +1,5 @@
 use actix_web::middleware::Logger;
-use actix_web::{post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Result, Responder};
 use chrono::Utc;
 use env_logger;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,9 @@ use std::str;
 use std::thread;
 #[macro_use]
 extern crate log;
+use std::io;
 use std::io::Write;
+use actix_files::NamedFile;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct GitHubUser {
@@ -75,7 +77,7 @@ fn run_command(path: &String, command: &String) -> Output {
 
 fn job_name(repository: &String) -> String {
     let repository = repository.replace("/", "-");
-    let now = Utc::now().format("%Y_%m_%d__%H_%M_%S").to_string();
+    let now = Utc::now().format("%Y-%m-%d--%H-%M-%S").to_string();
     format!("{}_{}", repository, now)
 }
 
@@ -169,6 +171,30 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
     HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_name))
 }
 
+// TODO: JSON response
+// TODO: Remove "./logs/" from the log response
+#[get("/logs")]
+async fn get_logs() -> impl Responder {
+    let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+    let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
+
+  let logs = fs::read_dir(&config.log).unwrap()
+    .map(|res| res.map(|e| e.path()))
+    .collect::<Result<Vec<_>, io::Error>>().unwrap();
+
+    HttpResponse::Ok().body(format!("{:?}", logs))
+}
+
+#[get("/logs/{log_name}")]
+async fn get_log(log_name: web::Path<String>) -> Result<NamedFile> {
+    let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+    let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
+
+    let path = format!("{}/{}", &config.log, log_name);
+    println!("aca {}", path);
+    Ok(NamedFile::open(path)?)
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
@@ -183,11 +209,16 @@ async fn main() -> std::io::Result<()> {
     fs::create_dir_all(config.log).expect("Failed creating logs directory");
 
     info!("Starting Thresh at {}", &socket);
-
-    HttpServer::new(|| App::new().wrap(Logger::default()).service(webhook))
-        .bind(socket)?
-        .run()
-        .await
+    HttpServer::new(|| {
+        App::new()
+            .wrap(Logger::default())
+            .service(webhook)
+            .service(get_logs)
+            .service(get_log)
+    })
+    .bind(socket)?
+    .run()
+    .await
 }
 
 #[cfg(test)]
