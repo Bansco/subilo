@@ -15,15 +15,9 @@ use std::io;
 use std::io::Write;
 
 #[derive(Debug, Deserialize, Serialize)]
-struct GitHubUser {
-    login: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
 struct Repository {
     full_name: String,
     name: String,
-    owner: GitHubUser,
 }
 
 // https://developer.github.com/webhooks/event-payloads/#push
@@ -33,7 +27,6 @@ struct PushEvent {
     #[serde(rename(serialize = "ref", deserialize = "ref"))]
     ref_: Option<String>,
     repository: Repository,
-    sender: GitHubUser,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -171,7 +164,6 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
     HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_name))
 }
 
-// TODO: JSON response
 #[get("/logs")]
 async fn get_logs() -> impl Responder {
     let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
@@ -228,16 +220,26 @@ async fn main() -> std::io::Result<()> {
 mod test {
     use super::*;
     use actix_web::test;
+    use serde_json::Value;
 
     #[actix_rt::test]
     async fn test_webhook_ok() {
         let mut server = test::init_service(App::new().service(webhook)).await;
+        let payload = r#"
+        {
+            "ref": "refs/tags/master",
+            "repository": {
+                "name": "test",
+                "full_name": "test/test"
+            }
+        }"#;
+        let json: Value = serde_json::from_str(payload).unwrap();
 
-        let payload = &[("name", "tigrin"), ("city", "amsterdam")];
         let req = test::TestRequest::post()
             .uri("/webhook")
-            .set_json(payload)
+            .set_json(&json)
             .to_request();
+
         let resp = test::call_service(&mut server, req).await;
 
         assert!(resp.status().is_success());
