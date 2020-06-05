@@ -1,22 +1,23 @@
 port = 8080
-
+log = "./logs"
 run_job_on_ping = false
 
 [[projects]]
-username = "test"
-repository = "test"
+repository = "test/test"
+branch = "master"
 path = "~/"
 commands = [
   "ls",
   "echo foo bar baz",
   "pwd",
-  "echo sleeping && sleep 2",
+  "echo sleeping && sleep 5",
+  "pwd",
   # "exit 137",
 ]
 
 [[projects]]
-username = "gillchristian"
-repository = "tsplay.dev"
+repository = "gillchristian/tsplay.dev"
+branch = "master"
 path = "~/dev/tsplay"
 commands = [
   # "docker pull gillchristian/tsplay:latest",
@@ -28,8 +29,8 @@ commands = [
 ]
 
 [[projects]]
-username = "ndelvalle"
-repository = "sarasa"
+repository = "ndelvalle/sarasa"
+branch = "master"
 path = "~/code/sarasa"
 commands = [
   "git pull",
