@@ -1,7 +1,6 @@
 use actix_web::middleware::Logger;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use chrono::Utc;
-use env_logger;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -39,7 +38,7 @@ struct Project {
 }
 
 impl Project {
-    fn to_string(&self) -> String {
+    fn title(&self) -> String {
         format!(
             "Project {} on branch {} at {}\n",
             self.repository, self.branch, self.path
@@ -56,7 +55,7 @@ struct Config {
 }
 
 // TODO: handle failure by returning Result
-fn run_command(path: &String, command: &String) -> Output {
+fn run_command(path: &str, command: &str) -> Output {
     Command::new("sh")
         .arg("-c")
         .arg(command)
@@ -68,19 +67,19 @@ fn run_command(path: &String, command: &String) -> Output {
         .expect("failed to wait on child")
 }
 
-fn job_name(repository: &String) -> String {
+fn job_name(repository: &str) -> String {
     let repository = repository.replace("/", "-");
     let now = Utc::now().format("%Y-%m-%d--%H-%M-%S").to_string();
     format!("{}_{}", repository, now)
 }
 
-fn job_logs(job: &String, log_dir: &String) -> String {
+fn job_logs(job: &str, log_dir: &str) -> String {
     let log_dir = shellexpand::tilde(&log_dir).into_owned();
     format!("{}/{}.log", log_dir, job)
 }
 
 fn run_project(project: Project, mut log: std::fs::File) {
-    log.write_all(project.to_string().as_bytes()).unwrap();
+    log.write_all(project.title().as_bytes()).unwrap();
 
     for command in &project.commands {
         debug!("Running command {}", &command);
@@ -105,7 +104,7 @@ fn run_project(project: Project, mut log: std::fs::File) {
                 .write_all(format!("Exit {}\n", code).as_bytes())
                 .unwrap(),
             (_, None) => log
-                .write_all(format!("Process terminated by signal\n").as_bytes())
+                .write_all("Process terminated by signal\n".to_string().as_bytes())
                 .unwrap(),
         }
     }
