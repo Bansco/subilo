@@ -1,5 +1,5 @@
 use actix_web::middleware::Logger;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Result, Responder};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use chrono::Utc;
 use env_logger;
 use serde::{Deserialize, Serialize};
@@ -10,9 +10,9 @@ use std::str;
 use std::thread;
 #[macro_use]
 extern crate log;
+use actix_files::NamedFile;
 use std::io;
 use std::io::Write;
-use actix_files::NamedFile;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct GitHubUser {
@@ -48,7 +48,7 @@ struct Project {
 impl Project {
     fn to_string(&self) -> String {
         format!(
-            "Project {} on branch {} at path {}\n",
+            "Project {} on branch {} at {}\n",
             self.repository, self.branch, self.path
         )
     }
@@ -172,15 +172,18 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
 }
 
 // TODO: JSON response
-// TODO: Remove "./logs/" from the log response
 #[get("/logs")]
 async fn get_logs() -> impl Responder {
     let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
     let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
 
-  let logs = fs::read_dir(&config.log).unwrap()
-    .map(|res| res.map(|e| e.path()))
-    .collect::<Result<Vec<_>, io::Error>>().unwrap();
+    let log_dir = shellexpand::tilde(&config.log).into_owned();
+    let logs = fs::read_dir(log_dir)
+        .unwrap()
+        // TODO remove ".log"
+        .map(|res| res.map(|e| e.path().file_name().unwrap().to_owned()))
+        .collect::<Result<Vec<_>, io::Error>>()
+        .unwrap();
 
     HttpResponse::Ok().body(format!("{:?}", logs))
 }
@@ -190,8 +193,8 @@ async fn get_log(log_name: web::Path<String>) -> Result<NamedFile> {
     let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
     let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
 
-    let path = format!("{}/{}", &config.log, log_name);
-    println!("aca {}", path);
+    let log_dir = shellexpand::tilde(&config.log).into_owned();
+    let path = format!("{}/{}.log", &log_dir, log_name);
     Ok(NamedFile::open(path)?)
 }
 
