@@ -8,6 +8,9 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process::{Command, Output, Stdio};
 use std::str;
 use std::thread;
+#[macro_use]
+extern crate log;
+use std::io::Write;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct GitHubUser {
@@ -16,6 +19,7 @@ struct GitHubUser {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Repository {
+    full_name: String,
     name: String,
     owner: GitHubUser,
 }
@@ -32,17 +36,26 @@ struct PushEvent {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Project {
-    // TODO: add branch (pattern?) to filter on
     // TODO: add option to populate env
-    username: String,
     repository: String,
+    branch: String,
     path: String,
     commands: Vec<String>,
+}
+
+impl Project {
+    fn to_string(&self) -> String {
+        format!(
+            "Project {} using branch {} at path {} \n",
+            &self.repository, &self.branch, &self.path
+        )
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
     port: u16,
+    log: String,
     run_job_on_ping: Option<bool>,
     projects: Vec<Project>,
 }
@@ -60,11 +73,13 @@ fn run_command(path: &String, command: &String) -> Output {
         .expect("failed to wait on child")
 }
 
-fn run_project(project: &Project) -> String {
-    let mut result: String = "".to_owned();
+fn run_project(project: Project, mut log: std::fs::File) {
+    log.write_all(project.to_string().as_bytes()).unwrap();
 
     for command in &project.commands {
-        result.push_str(&format!("$ {}\n", &command));
+        debug!("Running command {}", &command);
+        log.write_all(format!("$ {}\n", &command).as_bytes())
+            .unwrap();
 
         let path = shellexpand::tilde(&project.path).into_owned();
         let output = run_command(&path, &command);
@@ -72,60 +87,67 @@ fn run_project(project: &Project) -> String {
         // TODO: Stream command stdout to log file instead of parse and log the
         //       whole response
         match str::from_utf8(&output.stdout) {
-            Ok(stdout) => result.push_str(&stdout),
-            Err(error) => result.push_str(&format!("Failed to parse stdout: {:?}\n", error)),
+            Ok(stdout) => log.write_all(stdout.as_bytes()).unwrap(),
+            Err(error) => log
+                .write_all(format!("Failed to parse stdout: {:?}\n", error).as_bytes())
+                .unwrap(),
         }
 
         match (output.status.success(), output.status.code()) {
             (true, _) => (),
-            (_, Some(code)) => result.push_str(&format!("Exit {}\n", code)),
-            (_, None) => result.push_str(&format!("Process terminated by signal\n")),
+            (_, Some(code)) => log
+                .write_all(format!("Exit {}\n", code).as_bytes())
+                .unwrap(),
+            (_, None) => log
+                .write_all(format!("Process terminated by signal\n").as_bytes())
+                .unwrap(),
         }
     }
-
-    result
 }
 
 // TODO: 400? 500? on missing Threshfile ?
 // TODO: where should Threshfile be by default ?
 // TODO: accept flag for Threshfile location
-// TODO: respond right away and run 'job' asynchronously after
-// TODO: write logs to file instead
 #[post("/webhook")]
-async fn webhook(info: web::Json<PushEvent>) -> impl Responder {
+async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
+    debug!("Github webhook recieved");
+
     let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
     let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
 
-    let is_ping = info.zen.is_some();
-    let run_job_on_ping = config.run_job_on_ping.map_or(false, |x| x);
+    // In case the user updated the log dir path we make sure it exists
+    fs::create_dir_all(&config.log).expect("Failed creating logs directory");
+
+    let is_ping = body.zen.is_some();
+    let run_job_on_ping = &config.run_job_on_ping.map_or(false, |x| x);
 
     if is_ping && !run_job_on_ping {
+        debug!("Retuning 200 status code to ping webhook");
         return HttpResponse::Ok().body("200 Ok");
     }
 
-    thread::spawn(move || {
-        info.ref_
-            .as_ref()
-            .filter(|ref_| ref_ == &"refs/heads/master")
-            .and_then(|_| {
-                config.projects.iter().find(|x| {
-                    x.username == info.repository.owner.login
-                        && x.repository == info.repository.name
-                })
-            })
-            .map(|project| {
-                let output = run_project(&project);
+    // TODO: Also check branch
+    let project = config
+        .projects
+        .into_iter()
+        .find(|project| project.repository == body.repository.full_name);
 
-                let logfile = format!(
-                    "./log/{}_{}_{}.log",
-                    Utc::now().format("%Y_%m_%d_%H_%M_%S").to_string(),
-                    info.repository.owner.login,
-                    info.repository.name,
-                );
+    if project.is_none() {
+        warn!(
+            "Webhook not found for repository {}",
+            body.repository.full_name
+        );
+        return HttpResponse::NotFound().body("404 Not Found");
+    }
 
-                fs::create_dir_all("./log").and_then(|_| fs::write(logfile, output.as_bytes()))
-            });
-    });
+    let project = project.unwrap();
+    let repository_name = &body.repository.full_name.replace("/", "-");
+    let now = Utc::now().format("%Y_%m_%d_%H_%M_%S").to_string();
+    let file_name = format!("{}/{}_{}.log", &config.log, now, repository_name);
+    let log = fs::File::create(file_name).expect("Failed creating log file");
+
+    debug!("Starting to process {} project", &project.repository);
+    thread::spawn(move || run_project(project, log));
 
     HttpResponse::Ok().body("200 Ok")
 }
@@ -138,8 +160,12 @@ async fn main() -> std::io::Result<()> {
     let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
     let socket = SocketAddr::new(localhost, config.port);
 
-    std::env::set_var("RUST_LOG", "actix_web=info");
+    std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
     env_logger::init();
+
+    fs::create_dir_all(config.log).expect("Failed creating logs directory");
+
+    info!("Starting Thresh at {}", &socket);
 
     HttpServer::new(|| App::new().wrap(Logger::default()).service(webhook))
         .bind(socket)?
