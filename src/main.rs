@@ -220,7 +220,7 @@ async fn main() -> std::io::Result<()> {
     let threshfile = matches
         .value_of("config")
         .map(|path| shellexpand::tilde(&path).into_owned())
-        .unwrap_or("./.threshfile".to_owned());
+        .unwrap_or_else(|| "./.threshfile".to_owned());
 
     let thresh_file = fs::read_to_string(&threshfile).expect("Failed reading threshfile file");
     let config: Config = toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
@@ -229,11 +229,11 @@ async fn main() -> std::io::Result<()> {
     let port: u16 = matches
         .value_of("port")
         .map(|port| port.parse().unwrap())
-        .unwrap_or(config.port.unwrap_or(8080));
+        .unwrap_or_else(|| config.port.unwrap_or(8080));
 
     let logs_dir = matches
         .value_of("logs-dir")
-        .unwrap_or(&config.logs_dir.unwrap_or("./logs".to_owned()))
+        .unwrap_or(&config.logs_dir.unwrap_or_else(|| "./logs".to_owned()))
         .to_owned();
 
     let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
