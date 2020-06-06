@@ -15,7 +15,13 @@ use std::io::Write;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
-    port: u16,
+    port: Option<u16>,
+    logs_dir: Option<String>,
+    run_job_on_ping: Option<bool>,
+}
+
+struct Context {
+    threshfile: String,
     logs_dir: String,
     run_job_on_ping: bool,
 }
@@ -28,7 +34,6 @@ struct JobsConfig {
 #[derive(Debug, Deserialize, Serialize)]
 struct Repository {
     full_name: String,
-    name: String,
 }
 
 // https://developer.github.com/webhooks/event-payloads/#push
@@ -118,57 +123,53 @@ fn run_project(project: Project, mut log: std::fs::File) {
 // TODO: where should Threshfile be by default ?
 // TODO: accept flag for Threshfile location
 #[post("/webhook")]
-async fn webhook(body: web::Json<PushEvent>, config: web::Data<Config>) -> impl Responder {
+async fn webhook(body: web::Json<PushEvent>, ctx: web::Data<Context>) -> impl Responder {
     debug!("Github webhook recieved");
 
-    let thresh_file = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+    let thresh_file = fs::read_to_string(&ctx.threshfile).expect("Failed reading threshfile file");
     let jobs_config: JobsConfig =
         toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
 
     let is_ping = body.zen.is_some();
-    if is_ping && !&config.run_job_on_ping {
+    if is_ping && !&ctx.run_job_on_ping {
         debug!("Retuning 200 status code to ping webhook");
         return HttpResponse::Ok().body("200 Ok");
     }
 
-    let project = jobs_config
+    let job_name = jobs_config
         .projects
         .into_iter()
         .find(|project| project.repository == body.repository.full_name)
         .filter(|project| match &body.ref_ {
             Some(ref_) => ref_.ends_with(&project.branch).to_owned(),
             None => false,
+        })
+        .map(|project| {
+            let job_name = job_name(&body.repository.full_name);
+            let file_name = job_logs(&job_name, &ctx.logs_dir);
+
+            // Make sure logs directory exists
+            let log = fs::create_dir_all(&ctx.logs_dir)
+                .and_then(|_| fs::File::create(file_name))
+                .expect("Failed creating log file");
+
+            thread::spawn(move || {
+                debug!("Starting to process {} project", &project.repository);
+                run_project(project, log)
+            });
+
+            job_name
         });
 
-    if project.is_none() {
-        warn!(
-            "Webhook not found for repository {}",
-            body.repository.full_name
-        );
-        return HttpResponse::NotFound().body("404 Not Found");
+    match job_name {
+        Some(job_name) => HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_name)),
+        None => HttpResponse::NotFound().body("404 Not Found"),
     }
-
-    let project = project.unwrap();
-
-    let job_name = job_name(&body.repository.full_name);
-    let file_name = job_logs(&job_name, &config.logs_dir);
-
-    // Make sure logs directory exists
-    let log = fs::create_dir_all(&config.logs_dir)
-        .and_then(|_| fs::File::create(file_name))
-        .expect("Failed creating log file");
-
-    thread::spawn(move || {
-        debug!("Starting to process {} project", &project.repository);
-        run_project(project, log)
-    });
-
-    HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_name))
 }
 
 #[get("/logs")]
-async fn get_logs(config: web::Data<Config>) -> impl Responder {
-    let log_dir = shellexpand::tilde(&config.logs_dir).into_owned();
+async fn get_logs(ctx: web::Data<Context>) -> impl Responder {
+    let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
     let logs = fs::read_dir(log_dir)
         .unwrap()
         .map(|res| res.map(|e| e.path().file_name().unwrap().to_owned()))
@@ -179,8 +180,8 @@ async fn get_logs(config: web::Data<Config>) -> impl Responder {
 }
 
 #[get("/logs/{log_name}")]
-async fn get_log(log_name: web::Path<String>, config: web::Data<Config>) -> Result<NamedFile> {
-    let log_dir = shellexpand::tilde(&config.logs_dir).into_owned();
+async fn get_log(log_name: web::Path<String>, ctx: web::Data<Context>) -> Result<NamedFile> {
+    let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
     let path = format!("{}/{}.log", &log_dir, log_name);
 
     Ok(NamedFile::open(path)?)
@@ -192,6 +193,14 @@ async fn main() -> std::io::Result<()> {
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
+        .arg(
+            clap::Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .help("Path to the Threshfile")
+                .takes_value(true)
+                .default_value("./.threshfile"),
+        )
         .arg(
             clap::Arg::with_name("port")
                 .short("p")
@@ -208,26 +217,31 @@ async fn main() -> std::io::Result<()> {
         )
         .get_matches();
 
-    let thresh_file = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+    let threshfile = matches
+        .value_of("config")
+        .map(|path| shellexpand::tilde(&path).into_owned())
+        .unwrap_or("./.threshfile".to_owned());
+
+    let thresh_file = fs::read_to_string(&threshfile).expect("Failed reading threshfile file");
     let config: Config = toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
 
     let run_job_on_ping = config.run_job_on_ping;
     let port: u16 = matches
         .value_of("port")
         .map(|port| port.parse().unwrap())
-        .unwrap_or(config.port);
+        .unwrap_or(config.port.unwrap_or(8080));
 
     let logs_dir = matches
         .value_of("logs-dir")
-        .unwrap_or(&config.logs_dir)
+        .unwrap_or(&config.logs_dir.unwrap_or("./logs".to_owned()))
         .to_owned();
 
     let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
     let socket = SocketAddr::new(localhost, port);
-    let context = web::Data::new(Config {
-        port,
+    let context = web::Data::new(Context {
+        threshfile,
         logs_dir,
-        run_job_on_ping,
+        run_job_on_ping: run_job_on_ping.unwrap_or(false),
     });
 
     std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
@@ -257,8 +271,8 @@ mod test {
 
     #[actix_rt::test]
     async fn test_webhook() {
-        let context = web::Data::new(Config {
-            port: 8080,
+        let context = web::Data::new(Context {
+            threshfile: "./.threshfile",
             logs_dir: String::from("./logs"),
             run_job_on_ping: false,
         });
@@ -286,8 +300,8 @@ mod test {
 
     #[actix_rt::test]
     async fn test_webhook_ping() {
-        let context = web::Data::new(Config {
-            port: 8080,
+        let context = web::Data::new(Context {
+            threshfile: "./.threshfile",
             logs_dir: String::from("./logs"),
             run_job_on_ping: false,
         });
