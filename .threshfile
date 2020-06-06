@@ -1,5 +1,5 @@
 port = 8080
-log = "./logs"
+logs_dir = "./logs"
 run_job_on_ping = false
 
 [[projects]]
