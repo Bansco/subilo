@@ -202,7 +202,7 @@ async fn main() -> std::io::Result<()> {
         .arg(
             clap::Arg::with_name("logs-dir")
                 .short("l")
-                .long("logs_dir")
+                .long("logs-dir")
                 .help("Sets a custom logs directory")
                 .takes_value(true),
         )

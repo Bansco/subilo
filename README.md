@@ -8,6 +8,9 @@
 
 ```bash
 cargo run
+
+# Setting CLI options
+cargo run -- --port 9090 --logs-dir ./logs
 ```
 
 ```bash
