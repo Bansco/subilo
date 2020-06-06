@@ -13,12 +13,11 @@ use actix_files::NamedFile;
 use std::io;
 use std::io::Write;
 
-
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
     port: u16,
     logs_dir: String,
-    run_job_on_ping: Option<bool>,
+    run_job_on_ping: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -123,12 +122,11 @@ async fn webhook(body: web::Json<PushEvent>, config: web::Data<Config>) -> impl 
     debug!("Github webhook recieved");
 
     let thresh_file = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
-    let jobs_config: JobsConfig = toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
+    let jobs_config: JobsConfig =
+        toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
 
     let is_ping = body.zen.is_some();
-    let run_job_on_ping = &config.run_job_on_ping.map_or(false, |x| x);
-
-    if is_ping && !run_job_on_ping {
+    if is_ping && !&config.run_job_on_ping {
         debug!("Retuning 200 status code to ping webhook");
         return HttpResponse::Ok().body("200 Ok");
     }
@@ -226,7 +224,11 @@ async fn main() -> std::io::Result<()> {
 
     let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
     let socket = SocketAddr::new(localhost, port);
-    let context = web::Data::new(Config{ port, logs_dir, run_job_on_ping });
+    let context = web::Data::new(Config {
+        port,
+        logs_dir,
+        run_job_on_ping,
+    });
 
     std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
     env_logger::init();
@@ -254,8 +256,15 @@ mod test {
     use serde_json::Value;
 
     #[actix_rt::test]
-    async fn test_webhook_ok() {
-        let mut server = test::init_service(App::new().service(webhook)).await;
+    async fn test_webhook() {
+        let context = web::Data::new(Config {
+            port: 8080,
+            logs_dir: String::from("./logs"),
+            run_job_on_ping: false,
+        });
+        let mut server =
+            test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
+
         let payload = r#"
         {
             "ref": "refs/tags/master",
@@ -270,9 +279,38 @@ mod test {
             .uri("/webhook")
             .set_json(&json)
             .to_request();
+        let res = test::call_service(&mut server, req).await;
 
-        let resp = test::call_service(&mut server, req).await;
+        assert!(res.status().is_success());
+    }
 
-        assert!(resp.status().is_success());
+    #[actix_rt::test]
+    async fn test_webhook_ping() {
+        let context = web::Data::new(Config {
+            port: 8080,
+            logs_dir: String::from("./logs"),
+            run_job_on_ping: false,
+        });
+        let mut server =
+            test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
+
+        let payload = r#"
+        {
+            "zen": "no es moco de pavo",
+            "ref": "refs/tags/master",
+            "repository": {
+                "name": "test",
+                "full_name": "test/test"
+            }
+        }"#;
+        let json: Value = serde_json::from_str(payload).unwrap();
+
+        let req = test::TestRequest::post()
+            .uri("/webhook")
+            .set_json(&json)
+            .to_request();
+        let res = test::call_service(&mut server, req).await;
+
+        assert!(res.status().is_success());
     }
 }
