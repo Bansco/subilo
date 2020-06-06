@@ -272,7 +272,7 @@ mod test {
     #[actix_rt::test]
     async fn test_webhook() {
         let context = web::Data::new(Context {
-            threshfile: "./.threshfile",
+            threshfile: "./.threshfile".to_owned(),
             logs_dir: String::from("./logs"),
             run_job_on_ping: false,
         });
@@ -301,7 +301,7 @@ mod test {
     #[actix_rt::test]
     async fn test_webhook_ping() {
         let context = web::Data::new(Context {
-            threshfile: "./.threshfile",
+            threshfile: "./.threshfile".to_owned(),
             logs_dir: String::from("./logs"),
             run_job_on_ping: false,
         });
