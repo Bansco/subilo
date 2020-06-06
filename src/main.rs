@@ -13,6 +13,19 @@ use actix_files::NamedFile;
 use std::io;
 use std::io::Write;
 
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Config {
+    port: u16,
+    logs_dir: String,
+    run_job_on_ping: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct JobsConfig {
+    projects: Vec<Project>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct Repository {
     full_name: String,
@@ -44,14 +57,6 @@ impl Project {
             self.repository, self.branch, self.path
         )
     }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Config {
-    port: u16,
-    log: String,
-    run_job_on_ping: Option<bool>,
-    projects: Vec<Project>,
 }
 
 // TODO: handle failure by returning Result
@@ -114,11 +119,11 @@ fn run_project(project: Project, mut log: std::fs::File) {
 // TODO: where should Threshfile be by default ?
 // TODO: accept flag for Threshfile location
 #[post("/webhook")]
-async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
+async fn webhook(body: web::Json<PushEvent>, config: web::Data<Config>) -> impl Responder {
     debug!("Github webhook recieved");
 
-    let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
-    let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
+    let thresh_file = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+    let jobs_config: JobsConfig = toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
 
     let is_ping = body.zen.is_some();
     let run_job_on_ping = &config.run_job_on_ping.map_or(false, |x| x);
@@ -128,7 +133,7 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
         return HttpResponse::Ok().body("200 Ok");
     }
 
-    let project = config
+    let project = jobs_config
         .projects
         .into_iter()
         .find(|project| project.repository == body.repository.full_name)
@@ -148,10 +153,10 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
     let project = project.unwrap();
 
     let job_name = job_name(&body.repository.full_name);
-    let file_name = job_logs(&job_name, &config.log);
+    let file_name = job_logs(&job_name, &config.logs_dir);
 
     // Make sure logs directory exists
-    let log = fs::create_dir_all(&config.log)
+    let log = fs::create_dir_all(&config.logs_dir)
         .and_then(|_| fs::File::create(file_name))
         .expect("Failed creating log file");
 
@@ -164,14 +169,10 @@ async fn webhook(body: web::Json<PushEvent>) -> impl Responder {
 }
 
 #[get("/logs")]
-async fn get_logs() -> impl Responder {
-    let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
-    let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
-
-    let log_dir = shellexpand::tilde(&config.log).into_owned();
+async fn get_logs(config: web::Data<Config>) -> impl Responder {
+    let log_dir = shellexpand::tilde(&config.logs_dir).into_owned();
     let logs = fs::read_dir(log_dir)
         .unwrap()
-        // TODO remove ".log"
         .map(|res| res.map(|e| e.path().file_name().unwrap().to_owned()))
         .collect::<Result<Vec<_>, io::Error>>()
         .unwrap();
@@ -180,35 +181,66 @@ async fn get_logs() -> impl Responder {
 }
 
 #[get("/logs/{log_name}")]
-async fn get_log(log_name: web::Path<String>) -> Result<NamedFile> {
-    let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
-    let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
-
-    let log_dir = shellexpand::tilde(&config.log).into_owned();
+async fn get_log(log_name: web::Path<String>, config: web::Data<Config>) -> Result<NamedFile> {
+    let log_dir = shellexpand::tilde(&config.logs_dir).into_owned();
     let path = format!("{}/{}.log", &log_dir, log_name);
+
     Ok(NamedFile::open(path)?)
 }
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    let contents = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
-    let config: Config = toml::from_str(&contents).expect("Failed parsing threshfile file");
+    let matches = clap::App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
+        .arg(
+            clap::Arg::with_name("port")
+                .short("p")
+                .long("port")
+                .help("Sets a custom server port")
+                .takes_value(true),
+        )
+        .arg(
+            clap::Arg::with_name("logs-dir")
+                .short("l")
+                .long("logs_dir")
+                .help("Sets a custom logs directory")
+                .takes_value(true),
+        )
+        .get_matches();
+
+    let thresh_file = fs::read_to_string("./.threshfile").expect("Failed reading threshfile file");
+    let config: Config = toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
+
+    let run_job_on_ping = config.run_job_on_ping;
+    let port: u16 = matches
+        .value_of("port")
+        .map(|port| port.parse().unwrap())
+        .unwrap_or(config.port);
+
+    let logs_dir = matches
+        .value_of("logs-dir")
+        .unwrap_or(&config.logs_dir)
+        .to_owned();
 
     let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-    let socket = SocketAddr::new(localhost, config.port);
+    let socket = SocketAddr::new(localhost, port);
+    let context = web::Data::new(Config{ port, logs_dir, run_job_on_ping });
 
     std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
     env_logger::init();
 
-    fs::create_dir_all(config.log).expect("Failed creating logs directory");
+    fs::create_dir_all(&context.logs_dir).expect("Failed creating logs directory");
 
     info!("Starting Thresh at {}", &socket);
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            .app_data(context.clone())
             .service(webhook)
-            .service(get_logs)
             .service(get_log)
+            .service(get_logs)
     })
     .bind(socket)?
     .run()
