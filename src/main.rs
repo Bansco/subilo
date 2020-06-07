@@ -4,7 +4,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 use std::str;
 use std::thread;
 #[macro_use]
@@ -64,11 +64,15 @@ impl Project {
 }
 
 // TODO: handle failure by returning Result
-fn run_command(path: &str, command: &str) -> Output {
+fn run_command(path: &str, command: &str, log: &std::fs::File) -> Output {
+    let stdout = log.try_clone().expect("Failed to clone log file (stdout)");
+    let stderr = log.try_clone().expect("Failed to clone log file (stderr)");
+
     Command::new("sh")
         .arg("-c")
         .arg(command)
-        .stdout(Stdio::piped())
+        .stdout(stdout)
+        .stderr(stderr)
         .current_dir(path)
         .spawn()
         .expect("failed to execute child")
@@ -96,16 +100,7 @@ fn run_project(project: Project, mut log: std::fs::File) {
             .unwrap();
 
         let path = shellexpand::tilde(&project.path).into_owned();
-        let output = run_command(&path, &command);
-
-        // TODO: Stream command stdout to log file instead of parse and log the
-        //       whole response
-        match str::from_utf8(&output.stdout) {
-            Ok(stdout) => log.write_all(stdout.as_bytes()).unwrap(),
-            Err(error) => log
-                .write_all(format!("Failed to parse stdout: {:?}\n", error).as_bytes())
-                .unwrap(),
-        }
+        let output = run_command(&path, &command, &log);
 
         match (output.status.success(), output.status.code()) {
             (true, _) => (),
