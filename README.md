@@ -7,7 +7,8 @@
 Download the latest binary from the release and give exec permission:
 
 ```
-$ wget -O thresh "https://github.com/Huemul/thresh/releases/download/v0.0.1/thresh_x86_64-ubuntu"
+$ wget -O thresh "https://github.com/Huemul/thresh/releases/download/v0.0.1/thresh_x86-64-linux
+"
 $ chmod +x thresh
 ```
 
