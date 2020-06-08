@@ -4,13 +4,14 @@
 
 ## Install & setup
 
-Download the latest binary from the release:
+Download the latest binary from the release and give exec permission:
 
 ```
-wget -O thresh "https://github.com/Huemul/thresh/releases/download/v0.0.1/thresh_x86_64-ubuntu"
+$ wget -O thresh "https://github.com/Huemul/thresh/releases/download/v0.0.1/thresh_x86_64-ubuntu"
+$ chmod +x thresh
 ```
 
-NOTE: you probably want to change the version (`v0.0.1`) to the [latest available release](https://github.com/Huemul/thresh/releases).
+**NOTE**: you probably want to change the version (`v0.0.1`) to the [latest available release](https://github.com/Huemul/thresh/releases).
 
 Now that Thresh is available:
 
