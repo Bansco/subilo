@@ -1,0 +1,48 @@
+# Optional flag to run the job on the ping event
+# sent by GitHub when setting up the webhook
+run_job_on_ping = false
+
+# Optional config, can be set here or by the CLI options
+port = 8080
+logs_dir = "./logs"
+
+# a list of projects to run jobs for
+
+[[projects]]
+# the repository where the webhook is set up
+repository = "username/repository"
+
+# run only for this branch
+branch = "master"
+
+# path where the commands should run the tilde (~) is properly expanded
+#
+# NOTE: the path does not have to be a git repo
+#       it can be any directory
+path = "~/path/to/project/directory"
+
+# list of commands to run
+commands = [
+  "git pull --rebase",
+  "docker-compose down",
+  "docker-compose up -d",
+]
+
+[[projects]]
+repository = "username/other"
+branch = "development"
+path = "~/path/to/other"
+commands = [
+  "git pull",
+  "./reset.sh",
+]
+
+[[projects]]
+repository = "username/yet-another"
+branch = "master"
+path = "~/path/to/another"
+commands = [
+  "git pull",
+  "systemctl stop yet_another",
+  "systemctl start yet_another",
+]
