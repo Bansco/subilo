@@ -1,4 +1,4 @@
-# Tresh
+# Thresh
 
 🛳 Tiny GitHub webhooks based CI/CD server for your VPS
 
