@@ -66,9 +66,9 @@ $ journalctl -u thresh -b
 
 Once Thresh is running and exposed to the internet on your VPS is time to [add the GitHub webhook to a repo](https://developer.github.com/webhooks/creating/).
 
-Create a webhook the sends `push` events to the webhook URL (`<domain-running-thresh>/webhook`).
+Create a webhook that sends `push` events to the webhook URL (`<domain-running-thresh>/webhook`).
 
-Thresh responds wih a "job id" in the case a webhook triggered a job. Which can be used to see the log file online:
+Thresh responds with a "job id" in case a webhook triggered a job. Which can be used to see the log file online:
 
 ```
 GET <domain-running-thresh>/logs
