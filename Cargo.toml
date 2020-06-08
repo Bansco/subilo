@@ -1,7 +1,7 @@
 [package]
 name = "thresh"
 version = "0.0.1"
-description = "Tiny local continuous integration based on GitHub webhooks"
+description = "Tiny GitHub webhooks based CI/CD server for your VPS"
 authors = ["gillchristian <gillchristiang@gmail.com>", "ndelvalle <nicolas.delvalle@gmail.com>"]
 edition = "2018"
 

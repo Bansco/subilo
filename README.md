@@ -37,7 +37,7 @@ Next create a `.threshfile` with the configuration to run for any project you wa
 
 Create a systemd file (`/etc/systemd/system/thresh.service`) with the following contents.
 
-```toml
+```
 [Unit]
 Description=Thresh
 
@@ -45,7 +45,7 @@ Description=Thresh
 ExecStart=/path/to/thresh -c /path/to/.threshfile -l /path/to/thresh-logs -p 8080
 ```
 
-NOTE: Make sure to update it with the right path to the Thresh binary and flags.
+**NOTE**: Make sure to update it with the right options and path to the Thresh binary.
 
 Now enable and start thresh service:
 
@@ -66,7 +66,16 @@ Once Thresh is running and exposed to the internet on your VPS is time to [add t
 
 Create a webhook the sends `push` events to the webhook URL (`<domain-running-thresh>/webhook`).
 
+Thresh responds wih a "job id" in the case a webhook triggered a job. Which can be used to see the log file online:
+
+```
+GET <domain-running-thresh>/logs
+GET <domain-running-thresh>/logs/:{job_id}
+```
+
 ## Development
+
+#### Testing 
 
 #### Run
 
@@ -88,3 +97,15 @@ cargo test
 # Watch mode
 cargo watch -x test
 ```
+
+### Testing the webhook locally
+
+```bash
+curl -d {
+  "ref": "refs/heads/master",
+  "repository": { "full_name": "username/repository" },
+  "sender": { "login": "username" }
+}' -H "Content-Type: application/json" -X POST http://localhost:8080/webhook
+```
+
+:point_up: That can also be used to trigger the webhook from other sources (eg. any CI/CD server). In that case, make sure the URL is passed by secrets.
