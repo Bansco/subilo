@@ -7,8 +7,7 @@
 Download the latest binary from the release and give exec permission:
 
 ```
-$ wget -O thresh "https://github.com/Huemul/thresh/releases/download/v0.0.1/thresh_x86-64-linux
-"
+$ wget -O thresh "https://github.com/Huemul/thresh/releases/download/v0.0.1/thresh_x86-64-linux"
 $ chmod +x thresh
 ```
 
@@ -37,7 +36,7 @@ OPTIONS:
 
 Next create a `.threshfile` with the configuration to run for any project you want. For a example threshfile see [sample.threshfile](https://github.com/Huemul/thresh/blob/master/sample.threshfile).
 
-Create a systemd file (`/etc/systemd/system/thresh.service`) with the following contents.
+Create a systemd service file (`/etc/systemd/system/thresh.service`) with the following contents.
 
 ```
 [Unit]
@@ -64,9 +63,7 @@ $ systemctl status thresh
 $ journalctl -u thresh -b
 ```
 
-Once Thresh is running and exposed to the internet on your VPS is time to [add the GitHub webhook to a repo](https://developer.github.com/webhooks/creating/).
-
-Create a webhook that sends `push` events to the webhook URL (`<domain-running-thresh>/webhook`).
+Once Thresh is running and exposed to the internet on your VPS is time to [add the GitHub webhook to a repo](https://developer.github.com/webhooks/creating/). Create a webhook that sends `push` events to the webhook URL (`<domain-running-thresh>/webhook`).
 
 Thresh responds with a "job id" in case a webhook triggered a job. Which can be used to see the log file online:
 
@@ -76,8 +73,6 @@ GET <domain-running-thresh>/logs/:{job_id}
 ```
 
 ## Development
-
-#### Testing 
 
 #### Run
 
@@ -110,4 +105,4 @@ curl -d {
 }' -H "Content-Type: application/json" -X POST http://localhost:8080/webhook
 ```
 
-:point_up: That can also be used to trigger the webhook from other sources (eg. any CI/CD server). In that case, make sure the URL is passed by secrets.
+:point_up: That can also be used to trigger the webhook from other sources (eg. any CI/CD server). In that case, make sure the URL is passed by a secret.
