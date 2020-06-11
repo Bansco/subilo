@@ -1,5 +1,6 @@
+use hex::FromHex;
 use actix_web::middleware::Logger;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{get, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -10,8 +11,14 @@ use std::thread;
 #[macro_use]
 extern crate log;
 use actix_files::NamedFile;
+use actix_web::web::Bytes;
+// use crypto::hmac::Hmac;
+// use crypto::mac::Mac;
+// use crypto::sha1::Sha1;
 use std::io;
 use std::io::Write;
+
+mod auth;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
@@ -118,9 +125,24 @@ fn run_project(project: Project, mut log: std::fs::File) {
 // TODO: where should Threshfile be by default ?
 // TODO: accept flag for Threshfile location
 #[post("/webhook")]
-async fn webhook(body: web::Json<PushEvent>, ctx: web::Data<Context>) -> impl Responder {
+async fn webhook(req: HttpRequest, raw_body: Bytes, ctx: web::Data<Context>) -> impl Responder {
     debug!("Github webhook recieved");
 
+    // Start auth
+    let secret = b"secret";
+    let hash_signature = req.headers().get("X-Hub-Signature");
+    if hash_signature.is_none() {
+        return HttpResponse::Forbidden().body("X-Hub-Signature not found in the request");
+    }
+    let hash_signature = hash_signature.unwrap().to_str().ok().unwrap();
+    let hash_signature = hex::decode(hash_signature).expect("sarasa");
+
+    if !auth::validate(secret, &hash_signature, &raw_body) {
+        return HttpResponse::Forbidden().body("X-Hub-Signature not found in the request");
+    }
+    // End auth
+
+    let body: PushEvent = serde_json::from_slice(raw_body.as_ref()).unwrap();
     let thresh_file = fs::read_to_string(&ctx.threshfile).expect("Failed reading threshfile file");
     let jobs_config: JobsConfig =
         toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
