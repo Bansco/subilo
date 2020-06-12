@@ -3,7 +3,7 @@ logs_dir = "./logs"
 run_job_on_ping = false
 
 [[projects]]
-repository = "Huemul/thresh"
+repository = "test/test"
 branch = "master"
 path = "~/"
 commands = [

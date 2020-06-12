@@ -248,7 +248,7 @@ async fn main() -> std::io::Result<()> {
         .to_owned();
 
     if matches.is_present("create-token") {
-        match auth::create_token() {
+        match auth::create_token(&secret) {
             Ok(token) => println!("Bearer {}", token),
             Err(err) => println!("Error creating token {}", err),
         }
