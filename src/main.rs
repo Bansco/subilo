@@ -220,7 +220,7 @@ async fn main() -> std::io::Result<()> {
             clap::Arg::with_name("create-token")
                 .short("t")
                 .long("create-token")
-                .help("Creates a token based on a specified secret to authorize agent connections")
+                .help("Creates a token based on a specified secret to authorize agent connections"),
         )
         .get_matches();
 
@@ -294,7 +294,7 @@ mod test {
         let context = web::Data::new(Context {
             threshfile: "./.threshfile".to_owned(),
             logs_dir: String::from("./logs"),
-            secret: String::from("secret")
+            secret: String::from("secret"),
         });
         let mut server =
             test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
@@ -323,7 +323,7 @@ mod test {
         let context = web::Data::new(Context {
             threshfile: "./.threshfile".to_owned(),
             logs_dir: String::from("./logs"),
-            secret: String::from("secret")
+            secret: String::from("secret"),
         });
         let mut server =
             test::init_service(App::new().app_data(context.clone()).service(webhook)).await;

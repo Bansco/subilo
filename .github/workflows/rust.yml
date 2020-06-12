@@ -11,7 +11,7 @@ jobs:
       matrix:
         rust:
           - stable
-          - nightly
+          # - nightly
     steps:
       - name: Checkout sources
         uses: actions/checkout@v1
@@ -34,7 +34,7 @@ jobs:
       matrix:
         rust:
           - stable
-          - nightly
+          # - nightly
     steps:
       - name: Checkout sources
         uses: actions/checkout@v1
@@ -57,7 +57,7 @@ jobs:
       matrix:
         rust:
           - stable
-          - nightly
+          # - nightly
     steps:
       - name: Checkout sources
         uses: actions/checkout@v1
@@ -84,7 +84,7 @@ jobs:
       matrix:
         rust:
           - stable
-          - nightly
+          # - nightly
     steps:
       - name: Checkout sources
         uses: actions/checkout@v1

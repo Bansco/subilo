@@ -2,8 +2,8 @@ use actix_web::dev::ServiceRequest;
 use actix_web::Error;
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
-use serde::{Deserialize, Serialize};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use serde::{Deserialize, Serialize};
 
 use super::Context;
 
@@ -24,13 +24,18 @@ pub fn create_token(secret: &String) -> Result<String, jsonwebtoken::errors::Err
     let mut header = Header::default();
     header.alg = Algorithm::HS512;
 
-    encode(&header, &my_claims, &EncodingKey::from_secret(secret.as_bytes()))
+    encode(
+        &header,
+        &my_claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
 }
 
-pub async fn validator(req: ServiceRequest, credentials: BearerAuth) -> Result<ServiceRequest, Error> {
-    let context = req
-        .app_data::<Context>()
-        .unwrap();
+pub async fn validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, Error> {
+    let context = req.app_data::<Context>().unwrap();
 
     let config = req
         .app_data::<Config>()
@@ -46,6 +51,6 @@ pub async fn validator(req: ServiceRequest, credentials: BearerAuth) -> Result<S
 
     match token_result {
         Ok(_) => Ok(req),
-        Err(_) => Err(AuthenticationError::from(config).into())
+        Err(_) => Err(AuthenticationError::from(config).into()),
     }
 }
