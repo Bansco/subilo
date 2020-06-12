@@ -1,6 +1,6 @@
-use hex::FromHex;
 use actix_web::middleware::Logger;
-use actix_web::{get, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web_httpauth::middleware::HttpAuthentication;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -11,10 +11,6 @@ use std::thread;
 #[macro_use]
 extern crate log;
 use actix_files::NamedFile;
-use actix_web::web::Bytes;
-// use crypto::hmac::Hmac;
-// use crypto::mac::Mac;
-// use crypto::sha1::Sha1;
 use std::io;
 use std::io::Write;
 
@@ -24,13 +20,13 @@ mod auth;
 struct Config {
     port: Option<u16>,
     logs_dir: Option<String>,
-    run_job_on_ping: Option<bool>,
+    secret: Option<String>,
 }
 
 struct Context {
     threshfile: String,
     logs_dir: String,
-    run_job_on_ping: bool,
+    secret: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -125,33 +121,12 @@ fn run_project(project: Project, mut log: std::fs::File) {
 // TODO: where should Threshfile be by default ?
 // TODO: accept flag for Threshfile location
 #[post("/webhook")]
-async fn webhook(req: HttpRequest, raw_body: Bytes, ctx: web::Data<Context>) -> impl Responder {
+async fn webhook(body: web::Json<PushEvent>, ctx: web::Data<Context>) -> impl Responder {
     debug!("Github webhook recieved");
 
-    // Start auth
-    let secret = b"secret";
-    let hash_signature = req.headers().get("X-Hub-Signature");
-    if hash_signature.is_none() {
-        return HttpResponse::Forbidden().body("X-Hub-Signature not found in the request");
-    }
-    let hash_signature = hash_signature.unwrap().to_str().ok().unwrap();
-    let hash_signature = hex::decode(hash_signature).expect("sarasa");
-
-    if !auth::validate(secret, &hash_signature, &raw_body) {
-        return HttpResponse::Forbidden().body("X-Hub-Signature not found in the request");
-    }
-    // End auth
-
-    let body: PushEvent = serde_json::from_slice(raw_body.as_ref()).unwrap();
     let thresh_file = fs::read_to_string(&ctx.threshfile).expect("Failed reading threshfile file");
     let jobs_config: JobsConfig =
         toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
-
-    let is_ping = body.zen.is_some();
-    if is_ping && !&ctx.run_job_on_ping {
-        debug!("Retuning 200 status code to ping webhook");
-        return HttpResponse::Ok().body("200 Ok");
-    }
 
     let job_name = jobs_config
         .projects
@@ -232,6 +207,21 @@ async fn main() -> std::io::Result<()> {
                 .help("Sets a custom logs directory")
                 .takes_value(true),
         )
+        .arg(
+            clap::Arg::with_name("secret")
+                .short("s")
+                .long("secreet")
+                .help("Sets a secret to authenticate tokens")
+                .takes_value(true),
+        )
+        // This commands handles the auth token creation. When used, the agent
+        // will not start and it will output the JWT.
+        .arg(
+            clap::Arg::with_name("create-token")
+                .short("t")
+                .long("create-token")
+                .help("Creates a token based on a specified secret to authorize agent connections")
+        )
         .get_matches();
 
     let threshfile = matches
@@ -242,7 +232,6 @@ async fn main() -> std::io::Result<()> {
     let thresh_file = fs::read_to_string(&threshfile).expect("Failed reading threshfile file");
     let config: Config = toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
 
-    let run_job_on_ping = config.run_job_on_ping;
     let port: u16 = matches
         .value_of("port")
         .map(|port| port.parse().unwrap())
@@ -253,12 +242,25 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or(&config.logs_dir.unwrap_or_else(|| "./logs".to_owned()))
         .to_owned();
 
+    let secret = matches
+        .value_of("secret")
+        .unwrap_or(&config.secret.unwrap_or_else(|| "secret".to_owned()))
+        .to_owned();
+
+    if matches.is_present("create-token") {
+        match auth::create_token() {
+            Ok(token) => println!("Bearer {}", token),
+            Err(err) => println!("Error creating token {}", err),
+        }
+        return Ok(());
+    }
+
     let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
     let socket = SocketAddr::new(localhost, port);
     let context = web::Data::new(Context {
         threshfile,
         logs_dir,
-        run_job_on_ping: run_job_on_ping.unwrap_or(false),
+        secret,
     });
 
     std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
@@ -271,6 +273,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .app_data(context.clone())
+            .wrap(HttpAuthentication::bearer(auth::validator))
             .service(webhook)
             .service(get_log)
             .service(get_logs)
@@ -291,7 +294,7 @@ mod test {
         let context = web::Data::new(Context {
             threshfile: "./.threshfile".to_owned(),
             logs_dir: String::from("./logs"),
-            run_job_on_ping: false,
+            secret: String::from("secret")
         });
         let mut server =
             test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
@@ -320,7 +323,7 @@ mod test {
         let context = web::Data::new(Context {
             threshfile: "./.threshfile".to_owned(),
             logs_dir: String::from("./logs"),
-            run_job_on_ping: false,
+            secret: String::from("secret")
         });
         let mut server =
             test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
