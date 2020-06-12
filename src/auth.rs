@@ -15,7 +15,7 @@ struct Claims {
 }
 
 pub fn create_token(secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
-    let my_claims = Claims {
+    let claims = Claims {
         sub: "thresh:agent".to_owned(),
         company: "thresh".to_owned(),
         // TODO: Move exp to configuration
@@ -27,7 +27,7 @@ pub fn create_token(secret: &str) -> Result<String, jsonwebtoken::errors::Error>
 
     encode(
         &header,
-        &my_claims,
+        &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
     )
 }
