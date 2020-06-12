@@ -14,11 +14,12 @@ struct Claims {
     exp: usize,
 }
 
-pub fn create_token(secret: &String) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn create_token(secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let my_claims = Claims {
         sub: "thresh:agent".to_owned(),
         company: "thresh".to_owned(),
-        exp: 10000000000,
+        // TODO: Move exp to configuration
+        exp: 10_000_000_000,
     };
 
     let mut header = Header::default();
