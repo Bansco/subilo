@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::middleware::Logger;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -122,7 +123,7 @@ fn run_project(project: Project, mut log: std::fs::File) {
 // TODO: accept flag for Threshfile location
 #[post("/webhook")]
 async fn webhook(body: web::Json<PushEvent>, ctx: web::Data<Context>) -> impl Responder {
-    debug!("Github webhook recieved");
+    debug!("Webhook recieved");
 
     let thresh_file = fs::read_to_string(&ctx.threshfile).expect("Failed reading threshfile file");
     let jobs_config: JobsConfig =
@@ -271,6 +272,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .app_data(context.clone())
+            .wrap(Cors::new().finish())
             .wrap(HttpAuthentication::bearer(auth::validator))
             .service(webhook)
             .service(get_log)
@@ -299,36 +301,6 @@ mod test {
 
         let payload = r#"
         {
-            "ref": "refs/tags/master",
-            "repository": {
-                "name": "test",
-                "full_name": "test/test"
-            }
-        }"#;
-        let json: Value = serde_json::from_str(payload).unwrap();
-
-        let req = test::TestRequest::post()
-            .uri("/webhook")
-            .set_json(&json)
-            .to_request();
-        let res = test::call_service(&mut server, req).await;
-
-        assert!(res.status().is_success());
-    }
-
-    #[actix_rt::test]
-    async fn test_webhook_ping() {
-        let context = web::Data::new(Context {
-            threshfile: "./.threshfile".to_owned(),
-            logs_dir: String::from("./logs"),
-            secret: String::from("secret"),
-        });
-        let mut server =
-            test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
-
-        let payload = r#"
-        {
-            "zen": "no es moco de pavo",
             "ref": "refs/tags/master",
             "repository": {
                 "name": "test",
