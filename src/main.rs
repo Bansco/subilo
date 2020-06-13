@@ -214,13 +214,11 @@ async fn main() -> std::io::Result<()> {
                 .help("Sets a secret to authenticate tokens")
                 .takes_value(true),
         )
-        // This commands handles the auth token creation. When used, the agent
-        // will not start and it will output the JWT.
         .arg(
             clap::Arg::with_name("create-token")
                 .short("t")
                 .long("create-token")
-                .help("Creates a token based on a specified secret to authorize agent connections"),
+                .help("Creates a token based on a specified secret to authorize agent connections. This option will not start the agent and it will output a JWT")
         )
         .get_matches();
 
