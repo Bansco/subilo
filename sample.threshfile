@@ -1,7 +1,3 @@
-# Optional flag to run the job on the ping event
-# sent by GitHub when setting up the webhook
-run_job_on_ping = false
-
 # Optional config, can be set here or by the CLI options
 port = 8080
 logs_dir = "./logs"
