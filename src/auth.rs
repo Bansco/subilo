@@ -50,8 +50,7 @@ pub async fn validator(
         &Validation::new(Algorithm::HS512),
     );
 
-    match token_result {
-        Ok(_) => Ok(req),
-        Err(_) => Err(AuthenticationError::from(config).into()),
-    }
+    token_result
+      .map(|_| req)
+      .map_err(|_| Err(AuthenticationError::from(config).into()))
 }
