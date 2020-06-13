@@ -51,6 +51,6 @@ pub async fn validator(
     );
 
     token_result
-      .map(|_| req)
-      .map_err(|_| AuthenticationError::from(config).into())    
+        .map(|_| req)
+        .map_err(|_| AuthenticationError::from(config).into())
 }
