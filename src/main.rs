@@ -211,7 +211,7 @@ async fn main() -> std::io::Result<()> {
         .arg(
             clap::Arg::with_name("secret")
                 .short("s")
-                .long("secreet")
+                .long("secret")
                 .help("Sets a secret to authenticate tokens")
                 .takes_value(true),
         )
