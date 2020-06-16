@@ -15,6 +15,7 @@ extern crate log;
 use actix_files::NamedFile;
 use std::io;
 use std::io::Write;
+
 mod auth;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -79,9 +80,9 @@ fn run_command(path: &str, command: &str, log: &std::fs::File) -> Output {
         .stderr(stderr)
         .current_dir(path)
         .spawn()
-        .expect("failed to execute child")
+        .expect("Failed to execute child process")
         .wait_with_output()
-        .expect("failed to wait on child")
+        .expect("Failed to wait on child process")
 }
 
 fn job_name(repository: &str) -> String {
@@ -125,9 +126,9 @@ fn run_project(project: Project, mut log: std::fs::File) {
 async fn webhook(body: web::Json<PushEvent>, ctx: web::Data<Context>) -> impl Responder {
     debug!("Webhook recieved");
 
-    let thresh_file = fs::read_to_string(&ctx.threshfile).expect("Failed reading threshfile file");
+    let thresh_file = fs::read_to_string(&ctx.threshfile).expect("Failed to read threshfile file");
     let jobs_config: JobsConfig =
-        toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
+        toml::from_str(&thresh_file).expect("Failed to parse threshfile file");
 
     let job_name = jobs_config
         .projects
@@ -144,7 +145,7 @@ async fn webhook(body: web::Json<PushEvent>, ctx: web::Data<Context>) -> impl Re
             // Make sure logs directory exists
             let log = fs::create_dir_all(&ctx.logs_dir)
                 .and_then(|_| fs::File::create(file_name))
-                .expect("Failed creating log file");
+                .expect("Failed to create log file");
 
             thread::spawn(move || {
                 debug!("Starting to process {} project", &project.repository);
@@ -190,36 +191,36 @@ async fn main() -> std::io::Result<()> {
             clap::Arg::with_name("config")
                 .short("c")
                 .long("config")
-                .help("Path to the Threshfile")
+                .help("Path to Threshfile")
                 .takes_value(true)
-                .default_value("./.threshfile"),
+                .default_value(".threshfile"),
         )
         .arg(
             clap::Arg::with_name("port")
                 .short("p")
                 .long("port")
-                .help("Sets a custom server port")
+                .help("Custom server port")
                 .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("logs-dir")
                 .short("l")
                 .long("logs-dir")
-                .help("Sets a custom logs directory")
+                .help("Custom logs directory")
                 .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("secret")
                 .short("s")
                 .long("secret")
-                .help("Sets a secret to authenticate tokens")
+                .help("Secret to authenticate tokens")
                 .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("create-token")
                 .short("t")
                 .long("create-token")
-                .help("Creates a token based on a specified secret to authorize agent connections. This option will not start the agent and it will output a JWT")
+                .help("Create a token based on the specified secret to authorize agent connections. Will not start the agent but instead output the JWT")
         )
         .get_matches();
 
@@ -228,8 +229,8 @@ async fn main() -> std::io::Result<()> {
         .map(|path| shellexpand::tilde(&path).into_owned())
         .unwrap_or_else(|| "./.threshfile".to_owned());
 
-    let thresh_file = fs::read_to_string(&threshfile).expect("Failed reading threshfile");
-    let config: Config = toml::from_str(&thresh_file).expect("Failed parsing threshfile");
+    let thresh_file = fs::read_to_string(&threshfile).expect("Failed to read threshfile");
+    let config: Config = toml::from_str(&thresh_file).expect("Failed to parse threshfile");
 
     let default_port = 8080;
     let default_logs_dir = "./logs".to_owned();
@@ -244,8 +245,7 @@ async fn main() -> std::io::Result<()> {
         .value_of("logs-dir")
         .map(|s| s.to_string())
         .or(config.logs_dir)
-        .unwrap_or(default_logs_dir)
-        .to_owned();
+        .unwrap_or(default_logs_dir);
 
     let maybe_secret = matches
         .value_of("secret")
@@ -255,7 +255,7 @@ async fn main() -> std::io::Result<()> {
     let secret = match maybe_secret {
         Some(s) => s,
         None => {
-            eprintln!("Failed starting Thresh. Secret is a required attribute");
+            eprintln!("Secret is required");
             process::exit(1);
         }
     };
@@ -263,7 +263,7 @@ async fn main() -> std::io::Result<()> {
     if matches.is_present("create-token") {
         match auth::create_token(&secret) {
             Ok(token) => println!("Bearer {}", token),
-            Err(err) => println!("Error creating token {}", err),
+            Err(err) => eprintln!("Failed to create token {}", err),
         }
         return Ok(());
     }
@@ -279,7 +279,7 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
     env_logger::init();
 
-    fs::create_dir_all(&context.logs_dir).expect("Failed creating logs directory");
+    fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
 
     info!("Starting Thresh at {}", &socket);
     HttpServer::new(move || {

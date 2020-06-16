@@ -1,24 +1,24 @@
 [package]
 name = "thresh"
 version = "0.0.1"
-description = "Tiny GitHub webhooks based CI/CD server for your VPS"
+description = "Tiny webhook based continuous delivery server for your VPS"
 authors = ["gillchristian <gillchristiang@gmail.com>", "ndelvalle <nicolas.delvalle@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-cors = "0.2.0"
+actix-files = "0.2.2"
 actix-rt = "1.1.1"
 actix-web = "2.0.0"
+actix-web-httpauth = "0.4.1"
 chrono = "0.4"
+clap = "2.33.1"
 env_logger = "0.7"
+jsonwebtoken = "7.1.1"
 log = "0.4"
 serde = "1.0"
 serde_json = "1.0"
 shellexpand = "2.0"
 toml = "0.5"
-actix-files = "0.2.2"
-clap = "2.33.1"
-jsonwebtoken = "7.1.1"
-actix-web-httpauth = "0.4.1"
-actix-cors = "0.2.0"
