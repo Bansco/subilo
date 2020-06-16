@@ -6,6 +6,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::process;
 use std::process::{Command, Output};
 use std::str;
 use std::thread;
@@ -228,22 +229,30 @@ async fn main() -> std::io::Result<()> {
         .map(|path| shellexpand::tilde(&path).into_owned())
         .unwrap_or_else(|| "./.threshfile".to_owned());
 
-    let thresh_file = fs::read_to_string(&threshfile).expect("Failed reading threshfile file");
-    let config: Config = toml::from_str(&thresh_file).expect("Failed parsing threshfile file");
+    let thresh_file = fs::read_to_string(&threshfile).expect("Failed reading threshfile");
+    let config: Config = toml::from_str(&thresh_file).expect("Failed parsing threshfile");
+
+    let default_port = 8080;
+    let default_logs_dir = "./logs".to_owned();
 
     let port: u16 = matches
         .value_of("port")
         .map(|port| port.parse().unwrap())
-        .unwrap_or_else(|| config.port.unwrap_or(8080));
+        .unwrap_or_else(|| config.port.unwrap_or(default_port));
 
     let logs_dir = matches
         .value_of("logs-dir")
-        .unwrap_or(&config.logs_dir.unwrap_or_else(|| "./logs".to_owned()))
+        .unwrap_or_else(|| config.logs_dir.as_ref().unwrap_or(&default_logs_dir))
         .to_owned();
 
     let secret = matches
         .value_of("secret")
-        .unwrap_or(&config.secret.unwrap_or_else(|| "secret".to_owned()))
+        .unwrap_or_else(|| {
+            config.secret.as_ref().unwrap_or_else(|| {
+                eprintln!("Failed starting Thresh. Secret is a required attribute");
+                process::exit(1);
+            })
+        })
         .to_owned();
 
     if matches.is_present("create-token") {
