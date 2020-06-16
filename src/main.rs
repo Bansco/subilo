@@ -15,7 +15,6 @@ extern crate log;
 use actix_files::NamedFile;
 use std::io;
 use std::io::Write;
-
 mod auth;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -237,23 +236,29 @@ async fn main() -> std::io::Result<()> {
 
     let port: u16 = matches
         .value_of("port")
-        .map(|port| port.parse().unwrap())
-        .unwrap_or_else(|| config.port.unwrap_or(default_port));
+        .and_then(|port| port.parse().ok())
+        .or(config.port)
+        .unwrap_or(default_port);
 
     let logs_dir = matches
         .value_of("logs-dir")
-        .unwrap_or_else(|| config.logs_dir.as_ref().unwrap_or(&default_logs_dir))
+        .map(|s| s.to_string())
+        .or(config.logs_dir)
+        .unwrap_or(default_logs_dir)
         .to_owned();
 
-    let secret = matches
+    let maybe_secret = matches
         .value_of("secret")
-        .unwrap_or_else(|| {
-            config.secret.as_ref().unwrap_or_else(|| {
-                eprintln!("Failed starting Thresh. Secret is a required attribute");
-                process::exit(1);
-            })
-        })
-        .to_owned();
+        .map(|s| s.to_string())
+        .or(config.secret);
+
+    let secret = match maybe_secret {
+        Some(s) => s,
+        None => {
+            eprintln!("Failed starting Thresh. Secret is a required attribute");
+            process::exit(1);
+        }
+    };
 
     if matches.is_present("create-token") {
         match auth::create_token(&secret) {
