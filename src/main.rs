@@ -189,8 +189,8 @@ async fn get_log(
     let log = async_std::fs::read_to_string(log_file_name).await?;
     let metadata = async_std::fs::read_to_string(metadata_file_name).await?;
 
-    let val: serde_json::Value = serde_json::from_str(&metadata)?;
-    let response = json!({ "log": log, "metadata": val });
+    let metadata_json: serde_json::Value = serde_json::from_str(&metadata)?;
+    let response = json!({ "log": log, "metadata": metadata_json });
 
     Ok(web::Json(response))
 }
