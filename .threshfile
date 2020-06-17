@@ -1,9 +1,9 @@
 port = 8080
 logs_dir = "./logs"
+secret = "secret"
 
 [[projects]]
-repository = "test/test"
-branch = "master"
+name = "test"
 path = "~/"
 commands = [
   "ls",
@@ -15,8 +15,7 @@ commands = [
 ]
 
 [[projects]]
-repository = "gillchristian/tsplay.dev"
-branch = "master"
+name = "tsplay"
 path = "~/dev/tsplay"
 commands = [
   # "docker pull gillchristian/tsplay:latest",
@@ -28,8 +27,7 @@ commands = [
 ]
 
 [[projects]]
-repository = "ndelvalle/sarasa"
-branch = "master"
+name = "sarasa"
 path = "~/code/sarasa"
 commands = [
   "git pull",

@@ -4,6 +4,7 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result
 use actix_web_httpauth::middleware::HttpAuthentication;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process;
@@ -12,11 +13,17 @@ use std::str;
 use std::thread;
 #[macro_use]
 extern crate log;
-use actix_files::NamedFile;
 use std::io;
 use std::io::Write;
 
 mod auth;
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Metadata {
+    name: String,
+    started_at: String,
+    ended_at: String,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
@@ -37,34 +44,20 @@ struct JobsConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Repository {
-    full_name: String,
-}
-
-// https://developer.github.com/webhooks/event-payloads/#push
-#[derive(Debug, Deserialize, Serialize)]
-struct PushEvent {
-    zen: Option<String>,
-    #[serde(rename(serialize = "ref", deserialize = "ref"))]
-    ref_: Option<String>,
-    repository: Repository,
+struct WebhookPayload {
+    name: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Project {
-    // TODO: add option to populate env
-    repository: String,
-    branch: String,
+    name: String,
     path: String,
     commands: Vec<String>,
 }
 
 impl Project {
     fn title(&self) -> String {
-        format!(
-            "Project {} on branch {} at {}\n",
-            self.repository, self.branch, self.path
-        )
+        format!("Project {} at {}\n", self.name, self.path)
     }
 }
 
@@ -85,20 +78,26 @@ fn run_command(path: &str, command: &str, log: &std::fs::File) -> Output {
         .expect("Failed to wait on child process")
 }
 
-fn job_name(repository: &str) -> String {
+fn create_job_name(repository: &str) -> String {
     let repository = repository.replace("/", "-");
     let now = Utc::now().format("%Y-%m-%d--%H-%M-%S").to_string();
     format!("{}_{}", repository, now)
 }
 
-fn job_logs(job: &str, log_dir: &str) -> String {
+fn create_log_name(job: &str, log_dir: &str) -> String {
     let log_dir = shellexpand::tilde(&log_dir).into_owned();
     format!("{}/{}.log", log_dir, job)
 }
 
-fn run_project(project: Project, mut log: std::fs::File) {
+fn create_metadata_log_name(job: &str, log_dir: &str) -> String {
+    let log_dir = shellexpand::tilde(&log_dir).into_owned();
+    format!("{}/{}.json", log_dir, job)
+}
+
+fn run_project(project: Project, mut log: std::fs::File, mut metadata_log: std::fs::File) {
     log.write_all(project.title().as_bytes()).unwrap();
 
+    let started_at = Utc::now().to_rfc3339();
     for command in &project.commands {
         debug!("Running command {}", &command);
         log.write_all(format!("$ {}\n", &command).as_bytes())
@@ -117,13 +116,19 @@ fn run_project(project: Project, mut log: std::fs::File) {
                 .unwrap(),
         }
     }
+
+    let metadata = Metadata {
+        name: project.name,
+        started_at,
+        ended_at: Utc::now().to_rfc3339(),
+    };
+
+    let json_metadata = serde_json::to_string(&metadata).unwrap();
+    metadata_log.write_all(json_metadata.as_bytes()).unwrap();
 }
 
-// TODO: 400? 500? on missing Threshfile ?
-// TODO: where should Threshfile be by default ?
-// TODO: accept flag for Threshfile location
 #[post("/webhook")]
-async fn webhook(body: web::Json<PushEvent>, ctx: web::Data<Context>) -> impl Responder {
+async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> impl Responder {
     debug!("Webhook recieved");
 
     let thresh_file = fs::read_to_string(&ctx.threshfile).expect("Failed to read threshfile file");
@@ -133,23 +138,21 @@ async fn webhook(body: web::Json<PushEvent>, ctx: web::Data<Context>) -> impl Re
     let job_name = jobs_config
         .projects
         .into_iter()
-        .find(|project| project.repository == body.repository.full_name)
-        .filter(|project| match &body.ref_ {
-            Some(ref_) => ref_.ends_with(&project.branch).to_owned(),
-            None => false,
-        })
+        .find(|project| project.name == body.name)
         .map(|project| {
-            let job_name = job_name(&body.repository.full_name);
-            let file_name = job_logs(&job_name, &ctx.logs_dir);
+            let job_name = create_job_name(&body.name);
+            let file_name = create_log_name(&job_name, &ctx.logs_dir);
+            let metadata_file_name = create_metadata_log_name(&job_name, &ctx.logs_dir);
 
-            // Make sure logs directory exists
-            let log = fs::create_dir_all(&ctx.logs_dir)
-                .and_then(|_| fs::File::create(file_name))
-                .expect("Failed to create log file");
+            fs::create_dir_all(&ctx.logs_dir).expect("Failed to create log directory");
+
+            let log = fs::File::create(file_name).expect("Failed to create log file");
+            let metadata =
+                fs::File::create(metadata_file_name).expect("Failed to create metadata log file");
 
             thread::spawn(move || {
-                debug!("Starting to process {} project", &project.repository);
-                run_project(project, log)
+                debug!("Starting to process {} project", &project.name);
+                run_project(project, log, metadata)
             });
 
             job_name
@@ -174,15 +177,29 @@ async fn get_logs(ctx: web::Data<Context>) -> impl Responder {
 }
 
 #[get("/logs/{log_name}")]
-async fn get_log(log_name: web::Path<String>, ctx: web::Data<Context>) -> Result<NamedFile> {
+async fn get_log(
+    log_name: web::Path<String>,
+    ctx: web::Data<Context>,
+) -> Result<web::Json<serde_json::value::Value>> {
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
-    let path = format!("{}/{}.log", &log_dir, log_name);
 
-    Ok(NamedFile::open(path)?)
+    let log_file_name = format!("{}/{}.log", &log_dir, log_name);
+    let metadata_file_name = format!("{}/{}.json", &log_dir, log_name);
+
+    let log = async_std::fs::read_to_string(log_file_name).await?;
+    let metadata = async_std::fs::read_to_string(metadata_file_name).await?;
+
+    let val: serde_json::Value = serde_json::from_str(&metadata)?;
+    let response = json!({ "log": log, "metadata": val });
+
+    Ok(web::Json(response))
 }
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
+    std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
+    env_logger::init();
+
     let matches = clap::App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -276,9 +293,6 @@ async fn main() -> std::io::Result<()> {
         secret,
     });
 
-    std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
-    env_logger::init();
-
     fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
 
     info!("Starting Thresh at {}", &socket);
@@ -313,14 +327,7 @@ mod test {
         let mut server =
             test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
 
-        let payload = r#"
-        {
-            "ref": "refs/tags/master",
-            "repository": {
-                "name": "test",
-                "full_name": "test/test"
-            }
-        }"#;
+        let payload = r#"{ "name": "test" }"#;
         let json: Value = serde_json::from_str(payload).unwrap();
 
         let req = test::TestRequest::post()
