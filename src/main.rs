@@ -1,20 +1,23 @@
 use actix_cors::Cors;
-use actix_web::middleware::Logger;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{
+    get, middleware::Logger, post, web, App, HttpResponse, HttpServer, Responder, Result,
+};
 use actix_web_httpauth::middleware::HttpAuthentication;
+use async_std::prelude::*;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::fs;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::process;
-use std::process::{Command, Output};
-use std::str;
-use std::thread;
+use std::{
+    fs,
+    io::Write,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    process,
+    process::{Command, Output},
+    str, thread,
+};
+
 #[macro_use]
 extern crate log;
-use std::io;
-use std::io::Write;
 
 mod auth;
 
@@ -127,6 +130,25 @@ fn run_project(project: Project, mut log: std::fs::File, mut metadata_log: std::
     metadata_log.write_all(json_metadata.as_bytes()).unwrap();
 }
 
+fn spawn_job(logs_dir: &String, project: Project) -> String {
+    let job_name = create_job_name(&project.name);
+    let file_name = create_log_name(&job_name, logs_dir);
+    let metadata_file_name = create_metadata_log_name(&job_name, logs_dir);
+
+    fs::create_dir_all(logs_dir).expect("Failed to create log directory");
+
+    let log = fs::File::create(file_name).expect("Failed to create log file");
+    let metadata =
+        fs::File::create(metadata_file_name).expect("Failed to create metadata log file");
+
+    thread::spawn(move || {
+        debug!("Starting to process {} project", &project.name);
+        run_project(project, log, metadata)
+    });
+
+    job_name
+}
+
 #[post("/webhook")]
 async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> impl Responder {
     debug!("Webhook recieved");
@@ -139,52 +161,43 @@ async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> im
         .projects
         .into_iter()
         .find(|project| project.name == body.name)
-        .map(|project| {
-            let job_name = create_job_name(&body.name);
-            let file_name = create_log_name(&job_name, &ctx.logs_dir);
-            let metadata_file_name = create_metadata_log_name(&job_name, &ctx.logs_dir);
-
-            fs::create_dir_all(&ctx.logs_dir).expect("Failed to create log directory");
-
-            let log = fs::File::create(file_name).expect("Failed to create log file");
-            let metadata =
-                fs::File::create(metadata_file_name).expect("Failed to create metadata log file");
-
-            thread::spawn(move || {
-                debug!("Starting to process {} project", &project.name);
-                run_project(project, log, metadata)
-            });
-
-            job_name
-        });
+        .map(|project| spawn_job(&ctx.logs_dir, project));
 
     match job_name {
-        Some(job_name) => HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_name)),
+        Some(job) => HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job)),
         None => HttpResponse::NotFound().body("404 Not Found"),
     }
 }
 
-#[get("/logs")]
-async fn get_logs(ctx: web::Data<Context>) -> impl Responder {
+#[get("/jobs")]
+async fn get_jogs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value::Value>> {
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
-    let logs = fs::read_dir(log_dir)
-        .unwrap()
-        .map(|res| res.map(|e| e.path().file_name().unwrap().to_owned()))
-        .collect::<Result<Vec<_>, io::Error>>()
-        .unwrap();
+    let mut logs: Vec<String> = Vec::new();
 
-    HttpResponse::Ok().body(format!("{:?}", logs))
+    let mut dir = async_std::fs::read_dir(log_dir).await?;
+
+    while let Some(entry) = dir.next().await {
+        let path = entry?.path();
+
+        let name = path.file_name().unwrap().to_owned().into_string().unwrap();
+
+        if name.ends_with(".json") {
+            logs.push(name.replace(".json", ""));
+        }
+    }
+
+    Ok(web::Json(serde_json::to_value(&logs)?))
 }
 
-#[get("/logs/{log_name}")]
-async fn get_log(
-    log_name: web::Path<String>,
+#[get("/jobs/{job_name}")]
+async fn get_job_by_name(
+    job_name: web::Path<String>,
     ctx: web::Data<Context>,
 ) -> Result<web::Json<serde_json::value::Value>> {
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
 
-    let log_file_name = format!("{}/{}.log", &log_dir, log_name);
-    let metadata_file_name = format!("{}/{}.json", &log_dir, log_name);
+    let log_file_name = format!("{}/{}.log", &log_dir, job_name);
+    let metadata_file_name = format!("{}/{}.json", &log_dir, job_name);
 
     let log = async_std::fs::read_to_string(log_file_name).await?;
     let metadata = async_std::fs::read_to_string(metadata_file_name).await?;
@@ -303,8 +316,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(HttpAuthentication::bearer(auth::validator))
             .wrap(Cors::new().supports_credentials().finish())
             .service(webhook)
-            .service(get_log)
-            .service(get_logs)
+            .service(get_jogs)
+            .service(get_job_by_name)
     })
     .bind(socket)?
     .run()
