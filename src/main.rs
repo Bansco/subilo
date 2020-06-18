@@ -1,20 +1,15 @@
 use actix_cors::Cors;
-use actix_web::{
-    get, middleware::Logger, post, web, App, HttpResponse, HttpServer, Responder, Result,
-};
+use actix_web::middleware::Logger;
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use async_std::prelude::*;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{
-    fs,
-    io::Write,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    process,
-    process::{Command, Output},
-    str, thread,
-};
+use std::io::Write;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::process::{Command, Output};
+use std::{fs, process, str, thread};
 
 #[macro_use]
 extern crate log;
@@ -130,7 +125,7 @@ fn run_project(project: Project, mut log: std::fs::File, mut metadata_log: std::
     metadata_log.write_all(json_metadata.as_bytes()).unwrap();
 }
 
-fn spawn_job(logs_dir: &String, project: Project) -> String {
+fn spawn_job(logs_dir: &str, project: Project) -> String {
     let job_name = create_job_name(&project.name);
     let file_name = create_log_name(&job_name, logs_dir);
     let metadata_file_name = create_metadata_log_name(&job_name, logs_dir);
@@ -170,7 +165,7 @@ async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> im
 }
 
 #[get("/jobs")]
-async fn get_jogs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value::Value>> {
+async fn get_jobs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value::Value>> {
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
     let mut logs: Vec<String> = Vec::new();
 
@@ -181,8 +176,8 @@ async fn get_jogs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value
 
         let name = path.file_name().unwrap().to_owned().into_string().unwrap();
 
-        if name.ends_with(".json") {
-            logs.push(name.replace(".json", ""));
+        if name.ends_with(".log") {
+            logs.push(name.replace(".log", ""));
         }
     }
 
@@ -316,7 +311,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(HttpAuthentication::bearer(auth::validator))
             .wrap(Cors::new().supports_credentials().finish())
             .service(webhook)
-            .service(get_jogs)
+            .service(get_jobs)
             .service(get_job_by_name)
     })
     .bind(socket)?
