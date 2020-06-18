@@ -127,11 +127,11 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --all --release && strip target/release/thresh && mv target/release/thresh target/release/thresh_amd_x86-64-linux
+        run: cargo build --all --release && strip target/release/thresh && mv target/release/thresh target/release/thresh_x86-64-linux
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: target/release/thresh_amd_x86-64-linux
+          files: target/release/thresh_x86-64-linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
