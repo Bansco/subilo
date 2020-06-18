@@ -2,6 +2,8 @@
 
 🛳 Tiny GitHub webhooks based CI/CD server for your VPS
 
+![Rust](https://github.com/huemul/thresh/workflows/Rust/badge.svg)
+
 ## Install & setup
 
 Download the latest binary from the release and give exec permission:
