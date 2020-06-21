@@ -236,7 +236,7 @@ fn cli<'a, 'b>() -> clap::App<'a, 'b> {
                 .takes_value(true),
         )
         .subcommand(
-            clap::App::new("start")
+            clap::App::new("serve")
                 .about("Start thresh agent")
                 .arg(
                     clap::Arg::with_name("port")
