@@ -144,6 +144,18 @@ fn spawn_job(logs_dir: &str, project: Project) -> String {
     job_name
 }
 
+#[post("/healthz")]
+async fn healthz() -> impl Responder {
+    HttpResponse::Ok().body("200 Ok")
+}
+
+#[post("/info")]
+async fn info() -> Result<web::Json<serde_json::value::Value>> {
+    let response = json!({ "version": env!("CARGO_PKG_VERSION") });
+
+    Ok(web::Json(response))
+}
+
 #[post("/webhook")]
 async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> impl Responder {
     debug!("Webhook recieved");
@@ -203,34 +215,29 @@ async fn get_job_by_name(
     Ok(web::Json(response))
 }
 
-#[actix_rt::main]
-async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
-    env_logger::init();
-
-    let config_arg = clap::Arg::with_name("config")
-        .short("c")
-        .long("config")
-        .help("Path to Threshfile")
-        .takes_value(true)
-        .default_value(".threshfile");
-
-    let secret_arg = clap::Arg::with_name("secret")
-        .short("s")
-        .long("secret")
-        .help("Secret to authenticate tokens")
-        .takes_value(true);
-
-    let matches = clap::App::new(env!("CARGO_PKG_NAME"))
+fn cli<'a, 'b>() -> clap::App<'a, 'b> {
+    clap::App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS").replace(":", ", ").as_ref())
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .setting(clap::AppSettings::SubcommandRequiredElseHelp)
+        .arg(
+            clap::Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .help("Path to Threshfile")
+                .takes_value(true)
+                .default_value(".threshfile"),
+        )
+        .arg(
+            clap::Arg::with_name("secret")
+                .short("s")
+                .long("secret")
+                .help("Secret to generate and authenticate the token. Can also be provided in the Threshfile")
+                .takes_value(true),
+        )
         .subcommand(
             clap::App::new("start")
                 .about("Start thresh agent")
-                .arg(config_arg.clone())
-                .arg(secret_arg.clone())
                 .arg(
                     clap::Arg::with_name("port")
                         .short("p")
@@ -249,12 +256,17 @@ async fn main() -> std::io::Result<()> {
         .subcommand(
             clap::App::new("token")
                 .about(
-                    "Create a token based on the specified secret to authorize agent connections",
+                    "Create a token based on the secret to authorize agent connections",
                 )
-                .arg(config_arg.clone())
-                .arg(secret_arg.clone()),
         )
-        .get_matches();
+}
+
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
+    std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
+    env_logger::init();
+
+    let matches = cli().get_matches();
 
     let threshfile = matches
         .value_of("config")
@@ -317,6 +329,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(context.clone())
             .wrap(HttpAuthentication::bearer(auth::validator))
             .wrap(Cors::new().supports_credentials().finish())
+            .service(healthz)
+            .service(info)
             .service(webhook)
             .service(get_jobs)
             .service(get_job_by_name)
