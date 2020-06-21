@@ -2,22 +2,18 @@
 port = 8080
 logs_dir = "./logs"
 
-# a list of projects to run jobs for
+# List of projects to run jobs for
 
 [[projects]]
-# the repository where the webhook is set up
-repository = "username/repository"
+# Unique project identifier
+name = "foo-project"
 
-# run only for this branch
-branch = "master"
-
-# path where the commands should run the tilde (~) is properly expanded
-#
+# Path where the commands should run. The tilde (~) is properly expanded
 # NOTE: the path does not have to be a git repo
 #       it can be any directory
 path = "~/path/to/project/directory"
 
-# list of commands to run
+# List of commands to run
 commands = [
   "git pull --rebase",
   "docker-compose down",
@@ -25,20 +21,17 @@ commands = [
 ]
 
 [[projects]]
-repository = "username/other"
-branch = "development"
-path = "~/path/to/other"
+name = "sarasa"
+path = "~/path/to/sarasa"
 commands = [
   "git pull",
-  "./reset.sh",
+  "./restart-serever.sh",
 ]
 
 [[projects]]
-repository = "username/yet-another"
-branch = "master"
-path = "~/path/to/another"
+name = "baz"
+path = "~/path/to/baz"
 commands = [
   "git pull",
-  "systemctl stop yet_another",
-  "systemctl start yet_another",
+  "systemctl restart yet_another"
 ]

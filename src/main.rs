@@ -208,44 +208,51 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
     env_logger::init();
 
+    let config_arg = clap::Arg::with_name("config")
+        .short("c")
+        .long("config")
+        .help("Path to Threshfile")
+        .takes_value(true)
+        .default_value(".threshfile");
+
+    let secret_arg = clap::Arg::with_name("secret")
+        .short("s")
+        .long("secret")
+        .help("Secret to authenticate tokens")
+        .takes_value(true);
+
     let matches = clap::App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
+        .author(env!("CARGO_PKG_AUTHORS").replace(":", ", ").as_ref())
         .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(
-            clap::Arg::with_name("config")
-                .short("c")
-                .long("config")
-                .help("Path to Threshfile")
-                .takes_value(true)
-                .default_value(".threshfile"),
+        .setting(clap::AppSettings::SubcommandRequiredElseHelp)
+        .subcommand(
+            clap::App::new("start")
+                .about("Start thresh agent")
+                .arg(config_arg.clone())
+                .arg(secret_arg.clone())
+                .arg(
+                    clap::Arg::with_name("port")
+                        .short("p")
+                        .long("port")
+                        .help("Custom server port")
+                        .takes_value(true),
+                )
+                .arg(
+                    clap::Arg::with_name("logs-dir")
+                        .short("l")
+                        .long("logs-dir")
+                        .help("Custom logs directory")
+                        .takes_value(true),
+                ),
         )
-        .arg(
-            clap::Arg::with_name("port")
-                .short("p")
-                .long("port")
-                .help("Custom server port")
-                .takes_value(true),
-        )
-        .arg(
-            clap::Arg::with_name("logs-dir")
-                .short("l")
-                .long("logs-dir")
-                .help("Custom logs directory")
-                .takes_value(true),
-        )
-        .arg(
-            clap::Arg::with_name("secret")
-                .short("s")
-                .long("secret")
-                .help("Secret to authenticate tokens")
-                .takes_value(true),
-        )
-        .arg(
-            clap::Arg::with_name("create-token")
-                .short("t")
-                .long("create-token")
-                .help("Create a token based on the specified secret to authorize agent connections. Will not start the agent but instead output the JWT")
+        .subcommand(
+            clap::App::new("token")
+                .about(
+                    "Create a token based on the specified secret to authorize agent connections",
+                )
+                .arg(config_arg.clone())
+                .arg(secret_arg.clone()),
         )
         .get_matches();
 
@@ -285,7 +292,7 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
-    if matches.is_present("create-token") {
+    if matches.subcommand_matches("token").is_some() {
         match auth::create_token(&secret) {
             Ok(token) => println!("Bearer {}", token),
             Err(err) => eprintln!("Failed to create token {}", err),
