@@ -208,13 +208,14 @@ async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> im
         .into_iter()
         .find(|project| project.name == body.name);
 
-    if project.is_none() {
-        return HttpResponse::NotFound().body("404 Not Found");
+    match project {
+        Some(project) => {
+            let job_id = spawn_job(&ctx.logs_dir, project);
+
+            HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))
+        }
+        None => HttpResponse::NotFound().body("404 Not Found"),
     }
-
-    let job_id = spawn_job(&ctx.logs_dir, project.unwrap());
-
-    HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))
 }
 
 #[get("/jobs")]
