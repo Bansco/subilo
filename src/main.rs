@@ -117,7 +117,8 @@ fn run_project(
 
     for command in &project.commands {
         debug!("Running command {}", &command);
-        log.write_all(format!("$ {}\n", &command).as_bytes()).unwrap();
+        log.write_all(format!("$ {}\n", &command).as_bytes())
+            .unwrap();
 
         let path = shellexpand::tilde(&project.path).into_owned();
         let output = run_command(&path, &command, &log);
@@ -125,24 +126,21 @@ fn run_project(
         match (output.status.success(), output.status.code()) {
             (true, _) => (),
             (_, Some(code)) => {
-                log
-                .write_all(format!("Exit {}\n", code).as_bytes())
-                .unwrap();
+                log.write_all(format!("Exit {}\n", code).as_bytes())
+                    .unwrap();
 
                 metadata.status = MetadataStatus::Failed;
                 break;
-            },
+            }
             (_, None) => {
-                log
-                .write_all("Process terminated by signal\n".to_string().as_bytes())
-                .unwrap();
+                log.write_all("Process terminated by signal\n".to_string().as_bytes())
+                    .unwrap();
 
                 metadata.status = MetadataStatus::Failed;
                 break;
-            },
+            }
         }
     }
-
 
     if let MetadataStatus::Started = metadata.status {
         metadata.status = MetadataStatus::Succeeded;
