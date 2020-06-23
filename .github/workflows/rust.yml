@@ -1,108 +1,17 @@
 # Based on https://github.com/actions-rs/meta/blob/master/recipes/msrv.md
 name: Rust
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 
 jobs:
-  check:
-    name: Check
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust:
-          - stable
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v1
-
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
-
-      - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust:
-          - stable
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v1
-
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
-
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-
-  fmt:
-    name: Format
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust:
-          - stable
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v1
-
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
-
-      - name: Install rustfmt
-        run: rustup component add rustfmt
-
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust:
-          - stable
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v1
-
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
-
-      - name: Install clippy
-        run: rustup component add clippy
-
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
-  
-  release:
-    name: Release
-    if: startsWith(github.ref, 'refs/tags/')
+  build_test_release:
+    name: Build, Lint, Test & Release
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -118,6 +27,12 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
 
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Install clippy
+        run: rustup component add clippy
+
       - uses: actions/cache@v2
         with:
           path: |
@@ -126,10 +41,41 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --workspace -- --check
+
+      - name: Run cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+      - name: Run cargo build (release)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          command: --release
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+
       - name: Build
-        run: cargo build --all --release && strip target/release/thresh && mv target/release/thresh target/release/thresh_x86-64-linux
+        if: startsWith(github.ref, 'refs/tags/')
+        run: cargo build --workspace --release && strip target/release/thresh && mv target/release/thresh target/release/thresh_x86-64-linux
 
       - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: cargo build --workspace --release && strip target/release/thresh && mv target/release/thresh target/release/thresh_x86-64-linux
         uses: softprops/action-gh-release@v1
         with:
           files: target/release/thresh_x86-64-linux
