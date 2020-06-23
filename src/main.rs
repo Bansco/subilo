@@ -17,10 +17,25 @@ extern crate log;
 mod auth;
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum MetadataStatus {
+    Started,
+    Succeeded,
+    Failed,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct Metadata {
     name: String,
+    status: MetadataStatus,
     started_at: String,
-    ended_at: String,
+    ended_at: Option<String>,
+}
+
+impl Metadata {
+    fn to_json_string(&self) -> Result<String, serde_json::error::Error> {
+        serde_json::to_string(&self)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -92,37 +107,52 @@ fn create_metadata_log_name(job: &str, log_dir: &str) -> String {
     format!("{}/{}.json", log_dir, job)
 }
 
-fn run_project(project: Project, mut log: std::fs::File, mut metadata_log: std::fs::File) {
+fn run_project(
+    project: Project,
+    mut metadata: Metadata,
+    mut log: std::fs::File,
+    mut metadata_log: std::fs::File,
+) {
     log.write_all(project.title().as_bytes()).unwrap();
 
-    let started_at = Utc::now().to_rfc3339();
     for command in &project.commands {
         debug!("Running command {}", &command);
-        log.write_all(format!("$ {}\n", &command).as_bytes())
-            .unwrap();
+        log.write_all(format!("$ {}\n", &command).as_bytes()).unwrap();
 
         let path = shellexpand::tilde(&project.path).into_owned();
         let output = run_command(&path, &command, &log);
 
         match (output.status.success(), output.status.code()) {
             (true, _) => (),
-            (_, Some(code)) => log
+            (_, Some(code)) => {
+                log
                 .write_all(format!("Exit {}\n", code).as_bytes())
-                .unwrap(),
-            (_, None) => log
+                .unwrap();
+
+                metadata.status = MetadataStatus::Failed;
+                break;
+            },
+            (_, None) => {
+                log
                 .write_all("Process terminated by signal\n".to_string().as_bytes())
-                .unwrap(),
+                .unwrap();
+
+                metadata.status = MetadataStatus::Failed;
+                break;
+            },
         }
     }
 
-    let metadata = Metadata {
-        name: project.name,
-        started_at,
-        ended_at: Utc::now().to_rfc3339(),
-    };
 
-    let json_metadata = serde_json::to_string(&metadata).unwrap();
-    metadata_log.write_all(json_metadata.as_bytes()).unwrap();
+    if let MetadataStatus::Started = metadata.status {
+        metadata.status = MetadataStatus::Succeeded;
+    }
+    metadata.ended_at = Some(Utc::now().to_rfc3339());
+    // TODO: Discuss alternatives to update file content.
+    metadata_log.set_len(0).unwrap();
+    metadata_log
+        .write_all(metadata.to_json_string().unwrap().as_bytes())
+        .unwrap();
 }
 
 fn spawn_job(logs_dir: &str, project: Project) -> String {
@@ -132,13 +162,24 @@ fn spawn_job(logs_dir: &str, project: Project) -> String {
 
     fs::create_dir_all(logs_dir).expect("Failed to create log directory");
 
+    let metadata = Metadata {
+        name: project.name.clone(),
+        status: MetadataStatus::Started,
+        started_at: Utc::now().to_rfc3339(),
+        ended_at: None,
+    };
+
     let log = fs::File::create(file_name).expect("Failed to create log file");
-    let metadata =
+    let mut metadata_log =
         fs::File::create(metadata_file_name).expect("Failed to create metadata log file");
+
+    metadata_log
+        .write_all(metadata.to_json_string().unwrap().as_bytes())
+        .unwrap();
 
     thread::spawn(move || {
         debug!("Starting to process {} project", &project.name);
-        run_project(project, log, metadata)
+        run_project(project, metadata, log, metadata_log)
     });
 
     job_name
@@ -164,16 +205,18 @@ async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> im
     let jobs_config: JobsConfig =
         toml::from_str(&thresh_file).expect("Failed to parse threshfile file");
 
-    let job_name = jobs_config
+    let project = jobs_config
         .projects
         .into_iter()
-        .find(|project| project.name == body.name)
-        .map(|project| spawn_job(&ctx.logs_dir, project));
+        .find(|project| project.name == body.name);
 
-    match job_name {
-        Some(job) => HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job)),
-        None => HttpResponse::NotFound().body("404 Not Found"),
+    if project.is_none() {
+        return HttpResponse::NotFound().body("404 Not Found");
     }
+
+    let job_id = spawn_job(&ctx.logs_dir, project.unwrap());
+
+    HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))
 }
 
 #[get("/jobs")]
