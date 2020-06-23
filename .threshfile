@@ -10,7 +10,10 @@ commands = [
   "echo foo bar baz",
   "pwd",
   "echo sleeping && sleep 5",
-  "pwd",
+  "echo sleeping && sleep 5",
+  "echo sleeping && sleep 5",
+  "echo sleeping && sleep 5",
+  "pwd"
   # "exit 137",
 ]
 
