@@ -6,6 +6,14 @@
 
 ## Install and setup
 
+### Rust Package Registry
+
+```
+$ cargo install thresh
+```
+
+### Manually
+
 Download the latest [released binary](https://github.com/Huemul/thresh/releases)
 and add executable permissions:
 
