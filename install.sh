@@ -8,8 +8,7 @@ red="\033[31m"
 green="\033[32m"
 cyan="\033[36m"
 
-# DOWNLOAD_URL="https://github.com/Huemul/thresh/releases/download/alpha_v4/thresh-x86-64-linux"
-DOWNLOAD_URL="https://github.com/moneditas/api/releases/download/latest/moneditas-x86-64-linux"
+DOWNLOAD_URL="https://github.com/Huemul/thresh/releases/download/alpha_v4/thresh_x86-64-linux"
 
 # the following function was brought from https://yarnpkg.com/install.sh
 # https://github.com/yarnpkg/yarn/blob/master/LICENSE
@@ -56,13 +55,13 @@ detect_profile() {
 }
 
 install_thresh() {
-  local INSTALL_DIR="${HOME}/.thresh"
-  local INSTALL_FILE="${INSTALL_DIR}/bin/thresh"
+  local INSTALL_DIR="${HOME}/.thresh/bin"
+  local INSTALL_FILE="${INSTALL_DIR}/thresh"
   
   # Do not re create the folder if it already exists, the user might have sensitive 
   # configuration on it.
-  test -d "$INSTALL_DIR" || mkdir -p "$INSTALL_DIR/bin/"
-  curl --location --show-error $DOWNLOAD_URL --output "$INSTALL_FILE"  
+  test -d "$INSTALL_DIR" || mkdir -p "$INSTALL_DIR"
+  curl --location --show-error --progress-bar $DOWNLOAD_URL --output "$INSTALL_FILE"  
   chmod +x "$INSTALL_FILE"
 
   # Add Thresh bin to PATH
@@ -97,7 +96,7 @@ install_thresh() {
       exit 1;
     )
 
-    printf "$green> Successfully installed Thresh $version! Please open another terminal where the \`thresh\` command will now be available.$reset\n"
+    printf "$green> Successfully installed Thresh $version! Please source the profile or open another terminal where the \`thresh\` command will now be available.$reset\n"
   fi
 }
 
