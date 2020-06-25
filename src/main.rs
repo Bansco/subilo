@@ -6,7 +6,8 @@ use async_std::prelude::*;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::io::Write;
+use std::fs::OpenOptions;
+use std::io::{Seek,SeekFrom, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process::{Command, Output};
 use std::{fs, process, str, thread};
@@ -146,8 +147,7 @@ fn run_project(
         metadata.status = MetadataStatus::Succeeded;
     }
     metadata.ended_at = Some(Utc::now().to_rfc3339());
-    // TODO: Discuss alternatives to update file content.
-    metadata_log.set_len(0).unwrap();
+    metadata_log.seek(SeekFrom::Start(0)).unwrap();
     metadata_log
         .write_all(metadata.to_json_string().unwrap().as_bytes())
         .unwrap();
@@ -168,8 +168,11 @@ fn spawn_job(logs_dir: &str, project: Project) -> String {
     };
 
     let log = fs::File::create(file_name).expect("Failed to create log file");
-    let mut metadata_log =
-        fs::File::create(metadata_file_name).expect("Failed to create metadata log file");
+    let mut metadata_log = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(metadata_file_name)
+        .expect("Failed to create metadata log file");
 
     metadata_log
         .write_all(metadata.to_json_string().unwrap().as_bytes())
@@ -251,7 +254,8 @@ async fn get_job_by_name(
     let log = async_std::fs::read_to_string(log_file_name).await?;
     let metadata = async_std::fs::read_to_string(metadata_file_name).await?;
 
-    let metadata_json: serde_json::Value = serde_json::from_str(&metadata)?;
+    let metadata_json: Metadata = serde_json::from_str(&metadata)?;
+
     let response = json!({ "log": log, "metadata": metadata_json });
 
     Ok(web::Json(response))
