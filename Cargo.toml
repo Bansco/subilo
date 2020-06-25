@@ -4,6 +4,10 @@ version = "0.0.1"
 description = "Tiny deployment agent"
 authors = ["gillchristian <gillchristiang@gmail.com>", "ndelvalle <nicolas.delvalle@gmail.com>"]
 edition = "2018"
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/huemul/thresh"
+repository = "https://github.com/huemul/thresh"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
