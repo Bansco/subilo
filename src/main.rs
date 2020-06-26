@@ -265,13 +265,14 @@ async fn get_job_by_name(
 async fn main() -> std::io::Result<()> {
     let matches = cli::ask().get_matches();
 
-    match matches.is_present("verbose") {
-        true => std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info"),
-        false => std::env::set_var("RUST_LOG", "thresh=info,actix_web=info")
+    let log_level = match matches.is_present("verbose") {
+        true => "thresh=debug,actix_web=info",
+        false => "thresh=info,actix_web=info"
     };
+
+    std::env::set_var("RUST_LOG", log_level);
     env_logger::init();
 
-    debug!("Parsing CLI arguments");
     let threshfile = matches
         .value_of("config")
         .map(|path| shellexpand::tilde(&path).into_owned())
