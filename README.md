@@ -6,7 +6,7 @@
 
 ## Install and setup
 
-### Rust Package Registry
+### Cargo
 
 ```
 $ cargo install thresh

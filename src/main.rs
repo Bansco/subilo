@@ -16,6 +16,7 @@ use std::{fs, process, str, thread};
 extern crate log;
 
 mod auth;
+mod cli;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -194,7 +195,6 @@ async fn healthz() -> impl Responder {
 #[post("/info")]
 async fn info() -> Result<web::Json<serde_json::value::Value>> {
     let response = json!({ "version": env!("CARGO_PKG_VERSION") });
-
     Ok(web::Json(response))
 }
 
@@ -261,64 +261,23 @@ async fn get_job_by_name(
     Ok(web::Json(response))
 }
 
-fn cli<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .setting(clap::AppSettings::SubcommandRequiredElseHelp)
-        .arg(
-            clap::Arg::with_name("config")
-                .short("c")
-                .long("config")
-                .help("Path to Threshfile")
-                .takes_value(true)
-                .default_value(".threshfile"),
-        )
-        .arg(
-            clap::Arg::with_name("secret")
-                .short("s")
-                .long("secret")
-                .help("Secret to generate and authenticate the token. Can also be provided in the Threshfile")
-                .takes_value(true),
-        )
-        .subcommand(
-            clap::App::new("serve")
-                .about("Start thresh agent")
-                .arg(
-                    clap::Arg::with_name("port")
-                        .short("p")
-                        .long("port")
-                        .help("Custom server port")
-                        .takes_value(true),
-                )
-                .arg(
-                    clap::Arg::with_name("logs-dir")
-                        .short("l")
-                        .long("logs-dir")
-                        .help("Custom logs directory")
-                        .takes_value(true),
-                ),
-        )
-        .subcommand(
-            clap::App::new("token")
-                .about(
-                    "Create a token based on the secret to authorize agent connections",
-                )
-        )
-}
-
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info");
+    let matches = cli::ask().get_matches();
+
+    match matches.is_present("verbose") {
+        true => std::env::set_var("RUST_LOG", "thresh=debug,actix_web=info"),
+        false => std::env::set_var("RUST_LOG", "thresh=info,actix_web=info")
+    };
     env_logger::init();
 
-    let matches = cli().get_matches();
-
+    debug!("Parsing CLI arguments");
     let threshfile = matches
         .value_of("config")
         .map(|path| shellexpand::tilde(&path).into_owned())
         .unwrap_or_else(|| "./.threshfile".to_owned());
 
+    debug!("Parsing threshfile");
     let thresh_file = fs::read_to_string(&threshfile).expect("Failed to read threshfile");
     let config: Config = toml::from_str(&thresh_file).expect("Failed to parse threshfile");
 
@@ -343,17 +302,19 @@ async fn main() -> std::io::Result<()> {
         .or(config.secret);
 
     let secret = match maybe_secret {
-        Some(s) => s,
+        Some(secret) => secret,
         None => {
+            debug!("Required \"secret\" argument was not provided. Exiting process with status 1");
             eprintln!("Secret is required");
             process::exit(1);
         }
     };
 
     if matches.subcommand_matches("token").is_some() {
+        debug!("Creating authentication token");
         match auth::create_token(&secret) {
             Ok(token) => println!("Bearer {}", token),
-            Err(err) => eprintln!("Failed to create token {}", err),
+            Err(err) => eprintln!("Failed to create authentication token {}", err),
         }
         return Ok(());
     }
@@ -366,10 +327,11 @@ async fn main() -> std::io::Result<()> {
         secret,
     });
 
+    debug!("Creating logs directory at '{}'", &context.logs_dir);
     fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
 
-    info!("Starting Thresh at {}", &socket);
-    HttpServer::new(move || {
+    debug!("Attempting to bind Thresh agent to {}", &socket);
+    let server_bound = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
             .app_data(context.clone())
@@ -381,9 +343,18 @@ async fn main() -> std::io::Result<()> {
             .service(get_jobs)
             .service(get_job_by_name)
     })
-    .bind(socket)?
-    .run()
-    .await
+    .bind(socket);
+
+    match server_bound {
+        Ok(server) => {
+            info!("Thresh agent bound to {}", &socket);
+            server.run().await
+        }
+        Err(err) => {
+            error!("Failed to bind Thresh agent to {}. Error: {}", &socket, err);
+            Err(err)
+        }
+    }
 }
 
 #[cfg(test)]
