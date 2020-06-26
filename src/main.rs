@@ -267,7 +267,7 @@ async fn main() -> std::io::Result<()> {
 
     let log_level = match matches.is_present("verbose") {
         true => "thresh=debug,actix_web=info",
-        false => "thresh=info,actix_web=info"
+        false => "thresh=info,actix_web=info",
     };
 
     std::env::set_var("RUST_LOG", log_level);
