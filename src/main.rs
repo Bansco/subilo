@@ -1,10 +1,8 @@
 use actix_cors::Cors;
 use actix_http::ResponseBuilder;
 use actix_web::middleware::Logger;
-use actix_web::{
-    get, http::header, http::StatusCode, post, web, App, HttpResponse, HttpServer, Responder,
-    Result,
-};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::http::{header, StatusCode};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use async_std::fs as async_fs;
 use async_std::prelude::*;
