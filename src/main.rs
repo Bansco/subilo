@@ -1,7 +1,12 @@
 use actix_cors::Cors;
+use actix_http::ResponseBuilder;
 use actix_web::middleware::Logger;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{
+    get, http::header, http::StatusCode, post, web, App, HttpResponse, HttpServer, Responder,
+    Result,
+};
 use actix_web_httpauth::middleware::HttpAuthentication;
+use async_std::fs as async_fs;
 use async_std::prelude::*;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -11,12 +16,33 @@ use std::io::{Seek, SeekFrom, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process::{Command, Output};
 use std::{fs, process, str, thread};
+use thiserror::Error;
 
 #[macro_use]
 extern crate log;
 
 mod auth;
 mod cli;
+
+#[derive(Error, Debug)]
+pub enum ThreshError {
+    #[error("Failed to parse Thresh file, {}", .0)]
+    ParseThreshFile(#[from] toml::de::Error),
+}
+
+impl actix_web::error::ResponseError for ThreshError {
+    fn error_response(&self) -> HttpResponse {
+        ResponseBuilder::new(self.status_code())
+            .set_header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .body(self.to_string())
+    }
+
+    fn status_code(&self) -> StatusCode {
+        match &self {
+            ThreshError::ParseThreshFile(_msg) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -199,13 +225,16 @@ async fn info() -> Result<web::Json<serde_json::value::Value>> {
 }
 
 #[post("/webhook")]
-async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> impl Responder {
-    debug!("Webhook recieved");
-
-    let thresh_file = fs::read_to_string(&ctx.threshfile).expect("Failed to read threshfile file");
+async fn webhook(
+    body: web::Json<WebhookPayload>,
+    ctx: web::Data<Context>,
+) -> Result<impl Responder> {
+    debug!("Parsing threshfile");
+    let thresh_file = async_fs::read_to_string(&ctx.threshfile).await?;
     let jobs_config: JobsConfig =
-        toml::from_str(&thresh_file).expect("Failed to parse threshfile file");
+        toml::from_str(&thresh_file).map_err(ThreshError::ParseThreshFile)?;
 
+    debug!("Finding job by name {}", &body.name);
     let project = jobs_config
         .projects
         .into_iter()
@@ -213,11 +242,11 @@ async fn webhook(body: web::Json<WebhookPayload>, ctx: web::Data<Context>) -> im
 
     match project {
         Some(project) => {
+            debug!("Creating job");
             let job_id = spawn_job(&ctx.logs_dir, project);
-
-            HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))
+            Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id)))
         }
-        None => HttpResponse::NotFound().body("404 Not Found"),
+        None => Ok(HttpResponse::NotFound().body("404 Not Found")),
     }
 }
 
@@ -265,9 +294,10 @@ async fn get_job_by_name(
 async fn main() -> std::io::Result<()> {
     let matches = cli::ask().get_matches();
 
-    let log_level = match matches.is_present("verbose") {
-        true => "thresh=debug,actix_web=info",
-        false => "thresh=info,actix_web=info",
+    let log_level = if matches.is_present("verbose") {
+        "thresh=debug,actix_web=info"
+    } else {
+        "thresh=info,actix_web=info"
     };
 
     std::env::set_var("RUST_LOG", log_level);
