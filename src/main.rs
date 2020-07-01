@@ -164,7 +164,7 @@ fn spawn_job(logs_dir: &str, project: Project) -> Result<String, ThreshError> {
     let file_name = create_log_name(&job_name, logs_dir);
     let metadata_file_name = create_metadata_log_name(&job_name, logs_dir);
 
-    fs::create_dir_all(logs_dir).map_err(|err| ThreshError::CreateLogDirError { source: err })?;
+    fs::create_dir_all(logs_dir).map_err(|err| ThreshError::CreateLogDir { source: err })?;
 
     let metadata = Metadata {
         name: project.name.clone(),
@@ -213,7 +213,7 @@ async fn webhook(
     debug!("Parsing threshfile");
     let thresh_file = async_fs::read_to_string(&ctx.threshfile)
         .await
-        .map_err(|err| ThreshError::ReadThreshFileError { source: err })?;
+        .map_err(|err| ThreshError::ReadThreshFile { source: err })?;
 
     let jobs_config: JobsConfig =
         toml::from_str(&thresh_file).map_err(|err| ThreshError::ParseThreshFile { source: err })?;

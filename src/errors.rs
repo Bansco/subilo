@@ -6,10 +6,10 @@ use actix_web::HttpResponse;
 #[error("...")]
 pub enum ThreshError {
     #[error("Failed to read Thresh file, {}", source)]
-    ReadThreshFileError { source: std::io::Error },
+    ReadThreshFile { source: std::io::Error },
 
     #[error("Failed to create log directory, {}", source)]
-    CreateLogDirError { source: std::io::Error },
+    CreateLogDir { source: std::io::Error },
 
     #[error("Failed to create log file, {}", source)]
     CreateLogFile { source: std::io::Error },
@@ -29,12 +29,6 @@ impl actix_web::error::ResponseError for ThreshError {
     }
 
     fn status_code(&self) -> StatusCode {
-        match &self {
-            ThreshError::ParseThreshFile { source: _ } => StatusCode::INTERNAL_SERVER_ERROR,
-            ThreshError::CreateLogDirError { source: _ } => StatusCode::INTERNAL_SERVER_ERROR,
-            ThreshError::ReadThreshFileError { source: _ } => StatusCode::INTERNAL_SERVER_ERROR,
-            ThreshError::CreateLogFile { source: _ } => StatusCode::INTERNAL_SERVER_ERROR,
-            ThreshError::WriteLogFile { source: _ } => StatusCode::INTERNAL_SERVER_ERROR,
-        }
+        StatusCode::INTERNAL_SERVER_ERROR
     }
 }
