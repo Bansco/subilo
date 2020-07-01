@@ -18,9 +18,6 @@ mod cli;
 mod core;
 mod errors;
 
-use crate::core::*;
-use crate::errors::ThreshError;
-
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
     port: Option<u16>,
@@ -30,7 +27,7 @@ struct Config {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct JobsConfig {
-    projects: Vec<Project>,
+    projects: Vec<core::Project>,
 }
 
 struct Context {
@@ -63,10 +60,10 @@ async fn webhook(
     debug!("Parsing threshfile");
     let thresh_file = async_fs::read_to_string(&ctx.threshfile)
         .await
-        .map_err(|err| ThreshError::ReadThreshFile { source: err })?;
+        .map_err(|err| errors::ThreshError::ReadThreshFile { source: err })?;
 
-    let jobs_config: JobsConfig =
-        toml::from_str(&thresh_file).map_err(|err| ThreshError::ParseThreshFile { source: err })?;
+    let jobs_config: JobsConfig = toml::from_str(&thresh_file)
+        .map_err(|err| errors::ThreshError::ParseThreshFile { source: err })?;
 
     debug!("Finding project by name {}", &body.name);
     let project = jobs_config
@@ -79,7 +76,7 @@ async fn webhook(
     }
 
     debug!("Creating job for project {}", &body.name);
-    match spawn_job(&ctx.logs_dir, project.unwrap()) {
+    match core::spawn_job(&ctx.logs_dir, project.unwrap()) {
         Ok(job_id) => Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))),
         Err(err) => Ok(err.error_response()),
     }
@@ -118,7 +115,7 @@ async fn get_job_by_name(
     let log = async_std::fs::read_to_string(log_file_name).await?;
     let metadata = async_std::fs::read_to_string(metadata_file_name).await?;
 
-    let metadata_json: Metadata = serde_json::from_str(&metadata)?;
+    let metadata_json: core::Metadata = serde_json::from_str(&metadata)?;
     let response = json!({ "log": log, "metadata": metadata_json });
 
     Ok(web::Json(response))
