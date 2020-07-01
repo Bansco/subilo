@@ -18,6 +18,8 @@ mod cli;
 mod core;
 mod errors;
 
+use crate::errors::ThreshError;
+
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
     port: Option<u16>,
@@ -60,10 +62,10 @@ async fn webhook(
     debug!("Parsing threshfile");
     let thresh_file = async_fs::read_to_string(&ctx.threshfile)
         .await
-        .map_err(|err| errors::ThreshError::ReadThreshFile { source: err })?;
+        .map_err(|err| ThreshError::ReadThreshFile { source: err })?;
 
-    let jobs_config: JobsConfig = toml::from_str(&thresh_file)
-        .map_err(|err| errors::ThreshError::ParseThreshFile { source: err })?;
+    let jobs_config: JobsConfig =
+        toml::from_str(&thresh_file).map_err(|err| ThreshError::ParseThreshFile { source: err })?;
 
     debug!("Finding project by name {}", &body.name);
     let project = jobs_config
