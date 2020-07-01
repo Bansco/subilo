@@ -1,6 +1,5 @@
 use actix_cors::Cors;
-use actix_http::ResponseBuilder;
-use actix_web::http::{header, StatusCode};
+use actix_http::error::ResponseError;
 use actix_web::middleware::Logger;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -12,35 +11,17 @@ use serde_json::json;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::process::{Command, Output};
+use std::process::Command;
 use std::{fs, process, str, thread};
-use thiserror::Error;
 
 #[macro_use]
 extern crate log;
 
 mod auth;
 mod cli;
+mod errors;
 
-#[derive(Error, Debug)]
-pub enum ThreshError {
-    #[error("Failed to parse Thresh file, {}", .0)]
-    ParseThreshFile(#[from] toml::de::Error),
-}
-
-impl actix_web::error::ResponseError for ThreshError {
-    fn error_response(&self) -> HttpResponse {
-        ResponseBuilder::new(self.status_code())
-            .set_header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-            .body(self.to_string())
-    }
-
-    fn status_code(&self) -> StatusCode {
-        match &self {
-            ThreshError::ParseThreshFile(_msg) => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
+use errors::ThreshError;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -101,7 +82,7 @@ impl Project {
 }
 
 // TODO: handle failure by returning Result
-fn run_command(path: &str, command: &str, log: &std::fs::File) -> Output {
+fn run_command(path: &str, command: &str, log: &std::fs::File) -> std::process::Output {
     let stdout = log.try_clone().expect("Failed to clone log file (stdout)");
     let stderr = log.try_clone().expect("Failed to clone log file (stderr)");
 
@@ -178,12 +159,12 @@ fn run_project(
         .unwrap();
 }
 
-fn spawn_job(logs_dir: &str, project: Project) -> String {
+fn spawn_job(logs_dir: &str, project: Project) -> Result<String, ThreshError> {
     let job_name = create_job_name(&project.name);
     let file_name = create_log_name(&job_name, logs_dir);
     let metadata_file_name = create_metadata_log_name(&job_name, logs_dir);
 
-    fs::create_dir_all(logs_dir).expect("Failed to create log directory");
+    fs::create_dir_all(logs_dir).map_err(|err| ThreshError::CreateLogDirError { source: err })?;
 
     let metadata = Metadata {
         name: project.name.clone(),
@@ -192,23 +173,25 @@ fn spawn_job(logs_dir: &str, project: Project) -> String {
         ended_at: None,
     };
 
-    let log = fs::File::create(file_name).expect("Failed to create log file");
+    let log =
+        fs::File::create(file_name).map_err(|err| ThreshError::CreateLogFile { source: err })?;
+
     let mut metadata_log = OpenOptions::new()
         .write(true)
         .create(true)
         .open(metadata_file_name)
-        .expect("Failed to create metadata log file");
+        .map_err(|err| ThreshError::CreateLogFile { source: err })?;
 
     metadata_log
         .write_all(metadata.to_json_string().unwrap().as_bytes())
-        .unwrap();
+        .map_err(|err| ThreshError::WriteLogFile { source: err })?;
 
     thread::spawn(move || {
         debug!("Starting to process {} project", &project.name);
         run_project(project, metadata, log, metadata_log)
     });
 
-    job_name
+    Ok(job_name)
 }
 
 #[post("/healthz")]
@@ -228,23 +211,27 @@ async fn webhook(
     ctx: web::Data<Context>,
 ) -> Result<impl Responder> {
     debug!("Parsing threshfile");
-    let thresh_file = async_fs::read_to_string(&ctx.threshfile).await?;
-    let jobs_config: JobsConfig =
-        toml::from_str(&thresh_file).map_err(ThreshError::ParseThreshFile)?;
+    let thresh_file = async_fs::read_to_string(&ctx.threshfile)
+        .await
+        .map_err(|err| ThreshError::ReadThreshFileError { source: err })?;
 
-    debug!("Finding job by name {}", &body.name);
+    let jobs_config: JobsConfig =
+        toml::from_str(&thresh_file).map_err(|err| ThreshError::ParseThreshFile { source: err })?;
+
+    debug!("Finding project by name {}", &body.name);
     let project = jobs_config
         .projects
         .into_iter()
         .find(|project| project.name == body.name);
 
-    match project {
-        Some(project) => {
-            debug!("Creating job");
-            let job_id = spawn_job(&ctx.logs_dir, project);
-            Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id)))
-        }
-        None => Ok(HttpResponse::NotFound().body("404 Not Found")),
+    if project.is_none() {
+        return Ok(HttpResponse::NotFound().body("404 Not Found"));
+    }
+
+    debug!("Creating job for project {}", &body.name);
+    match spawn_job(&ctx.logs_dir, project.unwrap()) {
+        Ok(job_id) => Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))),
+        Err(err) => Ok(err.error_response()),
     }
 }
 
@@ -282,7 +269,6 @@ async fn get_job_by_name(
     let metadata = async_std::fs::read_to_string(metadata_file_name).await?;
 
     let metadata_json: Metadata = serde_json::from_str(&metadata)?;
-
     let response = json!({ "log": log, "metadata": metadata_json });
 
     Ok(web::Json(response))
