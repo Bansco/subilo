@@ -6,8 +6,8 @@ authors = ["gillchristian <gillchristiang@gmail.com>", "ndelvalle <nicolas.delva
 edition = "2018"
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/huemul/thresh"
-repository = "https://github.com/huemul/thresh"
+homepage = "https://github.com/huemul/subilo"
+repository = "https://github.com/huemul/subilo"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
