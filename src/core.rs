@@ -25,7 +25,8 @@ pub struct Metadata {
 
 impl Metadata {
     fn to_json_string(&self) -> Result<String, ThreshError> {
-        serde_json::to_string(&self).map_err(|err| ThreshError::SerializeMetadataToJSON { source: err })
+        serde_json::to_string(&self)
+            .map_err(|err| ThreshError::SerializeMetadataToJSON { source: err })
     }
 }
 
@@ -42,7 +43,11 @@ impl Project {
     }
 }
 
-pub fn run_command(path: &str, command: &str, log: &std::fs::File) -> Result<std::process::Output, ThreshError> {
+pub fn run_command(
+    path: &str,
+    command: &str,
+    log: &std::fs::File,
+) -> Result<std::process::Output, ThreshError> {
     let stdout = log.try_clone().expect("Failed to clone log file (stdout)");
     let stderr = log.try_clone().expect("Failed to clone log file (stderr)");
 
