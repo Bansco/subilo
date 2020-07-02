@@ -93,17 +93,16 @@ async fn get_jobs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value
     while let Some(entry) = dir.next().await {
         let path = entry?.path();
 
-        if path.file_name().is_none() {
-            error!("Failed to read file at path {:?}", path);
-            continue;
-        }
-
-        let file_name = path
-            .file_name()
-            .unwrap()
-            .to_owned()
-            .into_string()
-            .map_err(|_err| ThreshError::ReadFileName {})?;
+        let file_name = match path.file_name() {
+            Some(name) => name
+                .to_owned()
+                .into_string()
+                .map_err(|_err| ThreshError::ReadFileName {})?,
+            None => {
+                error!("Failed to read file at path {:?}", path);
+                continue;
+            }
+        };
 
         if file_name.ends_with(".json") {
             logs.push(file_name.replace(".json", ""));

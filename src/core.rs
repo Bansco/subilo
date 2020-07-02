@@ -51,18 +51,16 @@ pub fn run_command(
     let stdout = log.try_clone().expect("Failed to clone log file (stdout)");
     let stderr = log.try_clone().expect("Failed to clone log file (stderr)");
 
-    let output = Command::new("sh")
+    Command::new("sh")
         .arg("-c")
         .arg(command)
         .stdout(stdout)
         .stderr(stderr)
         .current_dir(path)
         .spawn()
-        .map_err(|err| ThreshError::ExecuteChildProcess { source: err })?
+        .map_err(|err| ThreshError::ExecuteCommand { source: err })?
         .wait_with_output()
-        .map_err(|err| ThreshError::WaitOnChildProcess { source: err })?;
-
-    Ok(output)
+        .map_err(|err| ThreshError::ExecuteCommand { source: err })
 }
 
 pub fn create_job_name(repository: &str) -> String {
