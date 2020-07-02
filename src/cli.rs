@@ -7,26 +7,26 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
             clap::Arg::with_name("config")
                 .short("c")
                 .long("config")
-                .help("Path to Threshfile")
+                .help("Path to Subilofile")
                 .takes_value(true)
-                .default_value(".threshfile"),
+                .default_value(".subilofile"),
         )
         .arg(
             clap::Arg::with_name("secret")
                 .short("s")
                 .long("secret")
-                .help("Secret to generate and authenticate the token. Can also be provided in the Threshfile")
+                .help("Secret to generate and authenticate the token. Can also be provided in the Subilofile")
                 .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("verbose")
                 .short("v")
                 .long("verbose")
-                .help("Makes Thresh verbose. Useful for debugging and seeing what's going on \"under the hood\"")
+                .help("Makes Subilo verbose. Useful for debugging and seeing what's going on \"under the hood\"")
         )
         .subcommand(
             clap::App::new("serve")
-                .about("Start thresh agent")
+                .about("Start subilo agent")
                 .arg(
                     clap::Arg::with_name("port")
                         .short("p")

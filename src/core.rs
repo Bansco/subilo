@@ -5,7 +5,7 @@ use std::io::{Seek, SeekFrom, Write};
 use std::process::Command;
 use std::{fs, str, thread};
 
-use crate::errors::ThreshError;
+use crate::errors::SubiloError;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -24,9 +24,9 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    fn to_json_string(&self) -> Result<String, ThreshError> {
+    fn to_json_string(&self) -> Result<String, SubiloError> {
         serde_json::to_string(&self)
-            .map_err(|err| ThreshError::SerializeMetadataToJSON { source: err })
+            .map_err(|err| SubiloError::SerializeMetadataToJSON { source: err })
     }
 }
 
@@ -47,7 +47,7 @@ pub fn run_command(
     path: &str,
     command: &str,
     log: &std::fs::File,
-) -> Result<std::process::Output, ThreshError> {
+) -> Result<std::process::Output, SubiloError> {
     let stdout = log.try_clone().expect("Failed to clone log file (stdout)");
     let stderr = log.try_clone().expect("Failed to clone log file (stderr)");
 
@@ -58,9 +58,9 @@ pub fn run_command(
         .stderr(stderr)
         .current_dir(path)
         .spawn()
-        .map_err(|err| ThreshError::ExecuteCommand { source: err })?
+        .map_err(|err| SubiloError::ExecuteCommand { source: err })?
         .wait_with_output()
-        .map_err(|err| ThreshError::ExecuteCommand { source: err })
+        .map_err(|err| SubiloError::ExecuteCommand { source: err })
 }
 
 pub fn create_job_name(repository: &str) -> String {
@@ -84,14 +84,14 @@ pub fn run_project(
     mut metadata: Metadata,
     mut log: std::fs::File,
     mut metadata_log: std::fs::File,
-) -> Result<(), ThreshError> {
+) -> Result<(), SubiloError> {
     log.write_all(project.description().as_bytes())
-        .map_err(|err| ThreshError::WriteLogFile { source: err })?;
+        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
     for command in &project.commands {
         debug!("Running command {}", &command);
         log.write_all(format!("$ {}\n", &command).as_bytes())
-            .map_err(|err| ThreshError::WriteLogFile { source: err })?;
+            .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
         let path = shellexpand::tilde(&project.path).into_owned();
         let output = run_command(&path, &command, &log)?;
@@ -100,14 +100,14 @@ pub fn run_project(
             (true, _) => (),
             (_, Some(code)) => {
                 log.write_all(format!("Exit {}\n", code).as_bytes())
-                    .map_err(|err| ThreshError::WriteLogFile { source: err })?;
+                    .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
                 metadata.status = MetadataStatus::Failed;
                 break;
             }
             (_, None) => {
                 log.write_all("Process terminated by signal\n".to_string().as_bytes())
-                    .map_err(|err| ThreshError::WriteLogFile { source: err })?;
+                    .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
                 metadata.status = MetadataStatus::Failed;
                 break;
@@ -121,20 +121,20 @@ pub fn run_project(
     metadata.ended_at = Some(Utc::now().to_rfc3339());
     metadata_log
         .seek(SeekFrom::Start(0))
-        .map_err(|err| ThreshError::WriteLogFile { source: err })?;
+        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
     metadata_log
         .write_all(metadata.to_json_string()?.as_bytes())
-        .map_err(|err| ThreshError::WriteLogFile { source: err })?;
+        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
     Ok(())
 }
 
-pub fn spawn_job(logs_dir: &str, project: Project) -> Result<String, ThreshError> {
+pub fn spawn_job(logs_dir: &str, project: Project) -> Result<String, SubiloError> {
     let job_name = create_job_name(&project.name);
     let file_name = create_log_name(&job_name, logs_dir);
     let metadata_file_name = create_metadata_log_name(&job_name, logs_dir);
 
-    fs::create_dir_all(logs_dir).map_err(|err| ThreshError::CreateLogDir { source: err })?;
+    fs::create_dir_all(logs_dir).map_err(|err| SubiloError::CreateLogDir { source: err })?;
 
     let metadata = Metadata {
         name: project.name.clone(),
@@ -144,17 +144,17 @@ pub fn spawn_job(logs_dir: &str, project: Project) -> Result<String, ThreshError
     };
 
     let log =
-        fs::File::create(file_name).map_err(|err| ThreshError::CreateLogFile { source: err })?;
+        fs::File::create(file_name).map_err(|err| SubiloError::CreateLogFile { source: err })?;
 
     let mut metadata_log = OpenOptions::new()
         .write(true)
         .create(true)
         .open(metadata_file_name)
-        .map_err(|err| ThreshError::CreateLogFile { source: err })?;
+        .map_err(|err| SubiloError::CreateLogFile { source: err })?;
 
     metadata_log
         .write_all(metadata.to_json_string()?.as_bytes())
-        .map_err(|err| ThreshError::WriteLogFile { source: err })?;
+        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
     thread::spawn(move || {
         debug!("Starting to process {} project", &project.name);

@@ -4,9 +4,12 @@ use actix_web::HttpResponse;
 
 #[derive(thiserror::Error, Debug)]
 #[error("...")]
-pub enum ThreshError {
-    #[error("Failed to read Thresh file, {}", source)]
-    ReadThreshFile { source: std::io::Error },
+pub enum SubiloError {
+    #[error("Failed to read Subilo file, {}", source)]
+    ReadSubiloFile { source: std::io::Error },
+
+    #[error("Failed to parse Subilo file, {}", source)]
+    ParseSubiloFile { source: toml::de::Error },
 
     #[error("Failed to create log directory, {}", source)]
     CreateLogDir { source: std::io::Error },
@@ -16,9 +19,6 @@ pub enum ThreshError {
 
     #[error("Failed to write log file, {}", source)]
     WriteLogFile { source: std::io::Error },
-
-    #[error("Failed to parse Thresh file, {}", source)]
-    ParseThreshFile { source: toml::de::Error },
 
     #[error("Failed to read file name")]
     ReadFileName {},
@@ -30,7 +30,7 @@ pub enum ThreshError {
     ExecuteCommand { source: std::io::Error },
 }
 
-impl actix_web::error::ResponseError for ThreshError {
+impl actix_web::error::ResponseError for SubiloError {
     fn error_response(&self) -> HttpResponse {
         ResponseBuilder::new(self.status_code())
             .set_header(header::CONTENT_TYPE, "text/html; charset=utf-8")

@@ -16,8 +16,8 @@ struct Claims {
 
 pub fn create_token(secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let claims = Claims {
-        sub: "thresh:agent".to_owned(),
-        company: "thresh".to_owned(),
+        sub: "subilo:agent".to_owned(),
+        company: "subilo".to_owned(),
         // TODO: Move exp to configuration
         exp: 10_000_000_000,
     };
