@@ -20,6 +20,9 @@ pub enum SubiloError {
     #[error("Failed to write log file, {}", source)]
     WriteLogFile { source: std::io::Error },
 
+    #[error("Failed to clone log file, {}", source)]
+    CloneLogFile { source: std::io::Error },
+
     #[error("Failed to read file name")]
     ReadFileName {},
 
@@ -28,6 +31,9 @@ pub enum SubiloError {
 
     #[error("Failed to execute command with child process, {}", source)]
     ExecuteCommand { source: std::io::Error },
+
+    #[error("Failed to authenticate request, {}", source)]
+    Authenticate { source: jsonwebtoken::errors::Error },
 }
 
 impl actix_web::error::ResponseError for SubiloError {
