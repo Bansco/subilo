@@ -38,7 +38,7 @@ pub struct Project {
 }
 
 impl Project {
-    fn title(&self) -> String {
+    fn description(&self) -> String {
         format!("Project {} at {}\n", self.name, self.path)
     }
 }
@@ -87,7 +87,7 @@ pub fn run_project(
     mut log: std::fs::File,
     mut metadata_log: std::fs::File,
 ) -> Result<(), ThreshError> {
-    log.write_all(project.title().as_bytes())
+    log.write_all(project.description().as_bytes())
         .map_err(|err| ThreshError::WriteLogFile { source: err })?;
 
     for command in &project.commands {
