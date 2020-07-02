@@ -19,6 +19,15 @@ pub enum ThreshError {
 
     #[error("Failed to parse Thresh file, {}", source)]
     ParseThreshFile { source: toml::de::Error },
+
+    #[error("Failed to read file name")]
+    ReadFileName {},
+
+    #[error("Failed to serialize Metadata structure to JSON, {}", source)]
+    SerializeMetadataToJSON { source: serde_json::error::Error },
+
+    #[error("Failed to execute command with child process, {}", source)]
+    ExecuteCommand { source: std::io::Error },
 }
 
 impl actix_web::error::ResponseError for ThreshError {

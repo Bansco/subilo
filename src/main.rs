@@ -88,16 +88,24 @@ async fn webhook(
 async fn get_jobs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value::Value>> {
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
     let mut logs: Vec<String> = Vec::new();
-
     let mut dir = async_std::fs::read_dir(log_dir).await?;
 
     while let Some(entry) = dir.next().await {
         let path = entry?.path();
 
-        let name = path.file_name().unwrap().to_owned().into_string().unwrap();
+        let file_name = match path.file_name() {
+            Some(name) => name
+                .to_owned()
+                .into_string()
+                .map_err(|_err| ThreshError::ReadFileName {})?,
+            None => {
+                error!("Failed to read file at path {:?}", path);
+                continue;
+            }
+        };
 
-        if name.ends_with(".log") {
-            logs.push(name.replace(".log", ""));
+        if file_name.ends_with(".json") {
+            logs.push(file_name.replace(".json", ""));
         }
     }
 
@@ -144,7 +152,7 @@ async fn main() -> std::io::Result<()> {
     debug!("Parsing threshfile");
     let thresh_file = fs::read_to_string(&threshfile).expect("Failed to read threshfile");
     let config: Config = toml::from_str(&thresh_file).expect("Failed to parse threshfile");
-    // parse only to validate the projects
+    // Parse only to validate the projects
     let _: JobsConfig = toml::from_str(&thresh_file).expect("Failed to parse threshfile");
 
     let default_port = 8080;
