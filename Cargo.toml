@@ -1,5 +1,5 @@
 [package]
-name = "thresh"
+name = "subilo"
 version = "0.0.1"
 description = "Tiny deployment agent"
 authors = ["gillchristian <gillchristiang@gmail.com>", "ndelvalle <nicolas.delvalle@gmail.com>"]

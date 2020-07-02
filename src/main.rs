@@ -18,7 +18,7 @@ mod cli;
 mod core;
 mod errors;
 
-use crate::errors::ThreshError;
+use crate::errors::SubiloError;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
@@ -33,7 +33,7 @@ pub struct JobsConfig {
 }
 
 struct Context {
-    threshfile: String,
+    subilofile: String,
     logs_dir: String,
     secret: String,
 }
@@ -59,13 +59,13 @@ async fn webhook(
     body: web::Json<WebhookPayload>,
     ctx: web::Data<Context>,
 ) -> Result<impl Responder> {
-    debug!("Parsing threshfile");
-    let thresh_file = async_fs::read_to_string(&ctx.threshfile)
+    debug!("Parsing subilofile");
+    let subilo_file = async_fs::read_to_string(&ctx.subilofile)
         .await
-        .map_err(|err| ThreshError::ReadThreshFile { source: err })?;
+        .map_err(|err| SubiloError::ReadSubiloFile { source: err })?;
 
     let jobs_config: JobsConfig =
-        toml::from_str(&thresh_file).map_err(|err| ThreshError::ParseThreshFile { source: err })?;
+        toml::from_str(&subilo_file).map_err(|err| SubiloError::ParseSubiloFile { source: err })?;
 
     debug!("Finding project by name {}", &body.name);
     let project = jobs_config
@@ -97,7 +97,7 @@ async fn get_jobs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value
             Some(name) => name
                 .to_owned()
                 .into_string()
-                .map_err(|_err| ThreshError::ReadFileName {})?,
+                .map_err(|_err| SubiloError::ReadFileName {})?,
             None => {
                 error!("Failed to read file at path {:?}", path);
                 continue;
@@ -136,24 +136,24 @@ async fn main() -> std::io::Result<()> {
     let matches = cli::ask().get_matches();
 
     let log_level = if matches.is_present("verbose") {
-        "thresh=debug,actix_web=info"
+        "subilo=debug,actix_web=info"
     } else {
-        "thresh=info,actix_web=info"
+        "subilo=info,actix_web=info"
     };
 
     std::env::set_var("RUST_LOG", log_level);
     env_logger::init();
 
-    let threshfile = matches
+    let subilofile = matches
         .value_of("config")
         .map(|path| shellexpand::tilde(&path).into_owned())
-        .unwrap_or_else(|| "./.threshfile".to_owned());
+        .unwrap_or_else(|| "./.subilofile".to_owned());
 
-    debug!("Parsing threshfile");
-    let thresh_file = fs::read_to_string(&threshfile).expect("Failed to read threshfile");
-    let config: Config = toml::from_str(&thresh_file).expect("Failed to parse threshfile");
+    debug!("Parsing subilofile");
+    let subilo_file = fs::read_to_string(&subilofile).expect("Failed to read subilofile");
+    let config: Config = toml::from_str(&subilo_file).expect("Failed to parse subilofile");
     // Parse only to validate the projects
-    let _: JobsConfig = toml::from_str(&thresh_file).expect("Failed to parse threshfile");
+    let _: JobsConfig = toml::from_str(&subilo_file).expect("Failed to parse subilofile");
 
     let default_port = 8080;
     let default_logs_dir = "./logs".to_owned();
@@ -196,7 +196,7 @@ async fn main() -> std::io::Result<()> {
     let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
     let socket = SocketAddr::new(localhost, port);
     let context = web::Data::new(Context {
-        threshfile,
+        subilofile,
         logs_dir,
         secret,
     });
@@ -204,7 +204,7 @@ async fn main() -> std::io::Result<()> {
     debug!("Creating logs directory at '{}'", &context.logs_dir);
     fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
 
-    debug!("Attempting to bind Thresh agent to {}", &socket);
+    debug!("Attempting to bind Subilo agent to {}", &socket);
     let server_bound = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
@@ -221,11 +221,11 @@ async fn main() -> std::io::Result<()> {
 
     match server_bound {
         Ok(server) => {
-            info!("Thresh agent bound to {}", &socket);
+            info!("Subilo agent bound to {}", &socket);
             server.run().await
         }
         Err(err) => {
-            error!("Failed to bind Thresh agent to {}. Error: {}", &socket, err);
+            error!("Failed to bind Subilo agent to {}. Error: {}", &socket, err);
             Err(err)
         }
     }
@@ -240,7 +240,7 @@ mod test {
     #[actix_rt::test]
     async fn test_webhook() {
         let context = web::Data::new(Context {
-            threshfile: "./.threshfile".to_owned(),
+            subilofile: "./.subilofile".to_owned(),
             logs_dir: String::from("./logs"),
             secret: String::from("secret"),
         });

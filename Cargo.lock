@@ -1661,6 +1661,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
+name = "subilo"
+version = "0.0.1"
+dependencies = [
+ "actix-cors",
+ "actix-files",
+ "actix-http",
+ "actix-rt",
+ "actix-web",
+ "actix-web-httpauth",
+ "async-std",
+ "chrono",
+ "clap",
+ "env_logger",
+ "jsonwebtoken",
+ "log",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1737,29 +1760,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d050e60b33d41c19108b32cea32164033a9013fe3b46cbd4457559bfbf77afaa"
 dependencies = [
  "num_cpus",
-]
-
-[[package]]
-name = "thresh"
-version = "0.0.1"
-dependencies = [
- "actix-cors",
- "actix-files",
- "actix-http",
- "actix-rt",
- "actix-web",
- "actix-web-httpauth",
- "async-std",
- "chrono",
- "clap",
- "env_logger",
- "jsonwebtoken",
- "log",
- "serde",
- "serde_json",
- "shellexpand",
- "thiserror",
- "toml",
 ]
 
 [[package]]

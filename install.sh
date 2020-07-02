@@ -8,7 +8,7 @@ red="\033[31m"
 green="\033[32m"
 cyan="\033[36m"
 
-DOWNLOAD_URL="https://github.com/Huemul/thresh/releases/download/alpha_v4/thresh_x86-64-linux"
+DOWNLOAD_URL="https://github.com/Huemul/subilo/releases/download/alpha_v4/subilo_x86-64-linux"
 
 # the following function was brought from https://yarnpkg.com/install.sh
 # https://github.com/yarnpkg/yarn/blob/master/LICENSE
@@ -54,9 +54,9 @@ detect_profile() {
   fi
 }
 
-install_thresh() {
-  local INSTALL_DIR="${HOME}/.thresh/bin"
-  local INSTALL_FILE="${INSTALL_DIR}/thresh"
+install_subilo() {
+  local INSTALL_DIR="${HOME}/.subilo/bin"
+  local INSTALL_FILE="${INSTALL_DIR}/subilo"
   
   # Do not re create the folder if it already exists, the user might have sensitive 
   # configuration on it.
@@ -64,40 +64,40 @@ install_thresh() {
   curl --location --show-error --progress-bar $DOWNLOAD_URL --output "$INSTALL_FILE"  
   chmod +x "$INSTALL_FILE"
 
-  # Add Thresh bin to PATH
+  # Add Subilo bin to PATH
   # the following code block was brought from https://yarnpkg.com/install.sh
   # https://github.com/yarnpkg/yarn/blob/master/LICENSE
-  THRESH_PROFILE="$(detect_profile)"
-  SOURCE_STR="\nexport PATH=\"\$HOME/.thresh/bin:\$PATH\"\n"
+  SUBILO_PROFILE="$(detect_profile)"
+  SOURCE_STR="\nexport PATH=\"\$HOME/.subilo/bin:\$PATH\"\n"
 
-  if [ -z "${THRESH_PROFILE-}" ] ; then
-    printf "$red> Profile not found. Tried ${THRESH_PROFILE} (as defined in \$PROFILE), ~/.bashrc, ~/.bash_profile, ~/.zshrc, and ~/.profile.\n"
+  if [ -z "${SUBILO_PROFILE-}" ] ; then
+    printf "$red> Profile not found. Tried ${SUBILO_PROFILE} (as defined in \$PROFILE), ~/.bashrc, ~/.bash_profile, ~/.zshrc, and ~/.profile.\n"
     echo "> Create one of them and run this script again"
-    echo "> Create it (touch ${THRESH_PROFILE}) and run this script again"
+    echo "> Create it (touch ${SUBILO_PROFILE}) and run this script again"
     echo "   OR"
     printf "> Append the following lines to the correct file yourself:$reset\n"
     command printf "${SOURCE_STR}"
   else
-    if ! grep -q 'thresh/bin' "$THRESH_PROFILE"; then
-      if [[ $THRESH_PROFILE == *"fish"* ]]; then
-        command fish -c 'set -U fish_user_paths $fish_user_paths ~/.thresh/bin'
-        printf "$cyan> We've added ~/.thresh/bin to your fish_user_paths universal variable\n"
+    if ! grep -q 'subilo/bin' "$SUBILO_PROFILE"; then
+      if [[ $SUBILO_PROFILE == *"fish"* ]]; then
+        command fish -c 'set -U fish_user_paths $fish_user_paths ~/.subilo/bin'
+        printf "$cyan> We've added ~/.subilo/bin to your fish_user_paths universal variable\n"
       else
-        command printf "$SOURCE_STR" >> "$THRESH_PROFILE"
-        printf "$cyan> We've added the following to your $THRESH_PROFILE\n"
+        command printf "$SOURCE_STR" >> "$SUBILO_PROFILE"
+        printf "$cyan> We've added the following to your $SUBILO_PROFILE\n"
       fi
       
       echo "> If this isn't the profile of your current shell then please add the following to your correct profile:"
       printf "   $SOURCE_STR$reset\n"
     fi
 
-    version=`$HOME/.thresh/bin/thresh --version` || (
-      printf "$red> Thresh was installed, but doesn't seem to be working :(.$reset\n"
+    version=`$HOME/.subilo/bin/subilo --version` || (
+      printf "$red> Subilo was installed, but doesn't seem to be working :(.$reset\n"
       exit 1;
     )
 
-    printf "$green> Successfully installed Thresh $version! Please source the profile or open another terminal where the \`thresh\` command will now be available.$reset\n"
+    printf "$green> Successfully installed Subilo $version! Please source the profile or open another terminal where the \`subilo\` command will now be available.$reset\n"
   fi
 }
 
-install_thresh
+install_subilo
