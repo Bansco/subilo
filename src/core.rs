@@ -48,8 +48,12 @@ pub fn run_command(
     command: &str,
     log: &std::fs::File,
 ) -> Result<std::process::Output, SubiloError> {
-    let stdout = log.try_clone().map_err(|err| SubiloError::CloneLogFile { source: err })?;
-    let stderr = log.try_clone().map_err(|err| SubiloError::CloneLogFile { source: err })?;
+    let stdout = log
+        .try_clone()
+        .map_err(|err| SubiloError::CloneLogFile { source: err })?;
+    let stderr = log
+        .try_clone()
+        .map_err(|err| SubiloError::CloneLogFile { source: err })?;
 
     Command::new("sh")
         .arg("-c")

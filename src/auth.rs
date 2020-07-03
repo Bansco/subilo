@@ -29,7 +29,8 @@ pub fn create_token(secret: &str) -> Result<String, SubiloError> {
         &header,
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
-    ).map_err(|err| SubiloError::Authenticate { source: err })
+    )
+    .map_err(|err| SubiloError::Authenticate { source: err })
 }
 
 // TODO: Migrate result to SubiloError and handle app data context unwrap.
