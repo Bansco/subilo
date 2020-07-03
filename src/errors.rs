@@ -44,6 +44,9 @@ impl actix_web::error::ResponseError for SubiloError {
     }
 
     fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
+        match &self {
+            SubiloError::Authenticate { source: _ } => StatusCode::UNAUTHORIZED,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
     }
 }
