@@ -2,7 +2,7 @@
 
 🛳 Tiny deployment agent
 
-![Rust](https://github.com/huemul/subilo/workflows/Rust/badge.svg)
+[![Rust](https://github.com/huemul/subilo/workflows/Rust/badge.svg)](https://github.com/Huemul/subilo/actions?query=workflow%3ARust)
 
 ## Install and setup
 
