@@ -1,6 +1,6 @@
 use actix_cors::Cors;
 use actix_web::error::ResponseError;
-use actix_web::middleware::Logger;
+use actix_web::middleware;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use async_std::fs as async_fs;
@@ -32,6 +32,7 @@ pub struct JobsConfig {
     projects: Vec<core::Project>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
 struct Context {
     subilofile: String,
     logs_dir: String,
@@ -58,8 +59,13 @@ async fn info() -> Result<web::Json<serde_json::value::Value>> {
 async fn webhook(
     body: web::Json<WebhookPayload>,
     ctx: web::Data<Context>,
+    user: auth::User,
 ) -> Result<impl Responder> {
-    debug!("Parsing subilofile");
+    if !user.has_permission("job:create".to_owned()) {
+        warn!("User does not have permission to create a job");
+        return Ok(HttpResponse::Forbidden().body("Forbidden"));
+    }
+
     let subilo_file = async_fs::read_to_string(&ctx.subilofile)
         .await
         .map_err(|err| SubiloError::ReadSubiloFile { source: err })?;
@@ -74,11 +80,12 @@ async fn webhook(
         .find(|project| project.name == body.name);
 
     if project.is_none() {
-        return Ok(HttpResponse::NotFound().body("404 Not Found"));
+        return Ok(HttpResponse::NotFound().body("Not Found"));
     }
 
     debug!("Creating job for project {}", &body.name);
     match core::spawn_job(&ctx.logs_dir, project.unwrap()) {
+        // TODO: Migrate to JSON response.
         Ok(job_id) => Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))),
         Err(err) => Ok(err.error_response()),
     }
@@ -207,7 +214,8 @@ async fn main() -> std::io::Result<()> {
     debug!("Attempting to bind Subilo agent to {}", &socket);
     let server_bound = HttpServer::new(move || {
         App::new()
-            .wrap(Logger::default())
+            .wrap(middleware::Compress::default())
+            .wrap(middleware::Logger::default())
             .app_data(context.clone())
             .wrap(HttpAuthentication::bearer(auth::validator))
             .wrap(Cors::new().supports_credentials().finish())

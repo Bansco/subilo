@@ -5,6 +5,9 @@ use actix_web::HttpResponse;
 #[derive(thiserror::Error, Debug)]
 #[error("...")]
 pub enum SubiloError {
+    #[error("Failed to read application Context")]
+    ReadContext {},
+
     #[error("Failed to read Subilo file, {}", source)]
     ReadSubiloFile { source: std::io::Error },
 
