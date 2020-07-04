@@ -242,6 +242,7 @@ async fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use actix_web::http::StatusCode;
     use actix_web::test;
     use serde_json::Value;
 
@@ -252,18 +253,28 @@ mod test {
             logs_dir: String::from("./logs"),
             secret: String::from("secret"),
         });
-        let mut server =
-            test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
+
+        let mut server = test::init_service(
+            App::new()
+                .wrap(middleware::Compress::default())
+                .wrap(middleware::Logger::default())
+                .app_data(context.clone())
+                .wrap(HttpAuthentication::bearer(auth::validator))
+                .service(webhook),
+        )
+        .await;
 
         let payload = r#"{ "name": "test" }"#;
         let json: Value = serde_json::from_str(payload).unwrap();
 
         let req = test::TestRequest::post()
             .uri("/webhook")
+            .header("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJleHAiOjE2MDk2MDU2NDIsImlhdCI6MTU5MzgzNzY0MiwiaXNzIjoic3ViaWxvOmFnZW50IiwidXNlciI6eyJwZXJtaXNzaW9ucyI6WyJqb2I6Y3JlYXRlIiwiam9iOnJlYWQiXX19.xKDuTsbug9XT5IXjnz_TYk-cIsCoqV11skXPa8XK054KFiouxh4jyOL7MX6wXwT1HMs2Mn-r6Ygvuhj-M71Bxg")
             .set_json(&json)
             .to_request();
+
         let res = test::call_service(&mut server, req).await;
 
-        assert!(res.status().is_success());
+        assert_eq!(res.status(), StatusCode::OK);
     }
 }
