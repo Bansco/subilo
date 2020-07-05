@@ -20,6 +20,15 @@ commands = [
   "docker-compose up -d",
 ]
 
+# Project's home page (optional)
+home = "https://foo-project.com"
+
+# Project's CI page (optional)
+ci = "https://app.circleci.com/pipelines/github/bar/foo"
+
+# Project's repository (optional)
+repo = "https://github.com/bar/foo"
+
 [[projects]]
 name = "sarasa"
 path = "~/path/to/sarasa"

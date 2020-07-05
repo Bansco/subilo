@@ -31,11 +31,12 @@ subilo 0.0.1
 Tiny deployment agent
 
 USAGE:
-    subilo [OPTIONS] <SUBCOMMAND>
+    subilo [FLAGS] [OPTIONS] <SUBCOMMAND>
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
+    -v, --verbose    Makes Subilo verbose. Useful for debugging and seeing what's going on "under the hood"
 
 OPTIONS:
     -c, --config <config>    Path to Subilofile [default: .subilofile]
@@ -43,7 +44,7 @@ OPTIONS:
 
 SUBCOMMANDS:
     help     Prints this message or the help of the given subcommand(s)
-    serve    Start subilo agent server
+    serve    Start subilo agent
     token    Create a token based on the secret to authorize agent connections
 ```
 
