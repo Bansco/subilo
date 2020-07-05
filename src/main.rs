@@ -154,7 +154,8 @@ async fn main() -> std::io::Result<()> {
     let subilofile = matches
         .value_of("config")
         .map(|path| shellexpand::tilde(&path).into_owned())
-        .unwrap_or_else(|| "./.subilofile".to_owned());
+        // It is safe to unwrap because the value has a clap default.
+        .unwrap();
 
     debug!("Parsing subilofile");
     let subilo_file = fs::read_to_string(&subilofile).expect("Failed to read subilofile");
@@ -193,7 +194,32 @@ async fn main() -> std::io::Result<()> {
 
     if matches.subcommand_matches("token").is_some() {
         debug!("Creating authentication token");
-        match auth::create_token(&secret) {
+
+        let duration: i64 = matches
+            .value_of("duration")
+            .and_then(|port| port.parse().ok())
+            // It is safe to unwrap because the value has a clap default.
+            .unwrap();
+
+        let permissions = matches
+            .value_of("permissions")
+            .map(|permissions: &str| {
+                permissions
+                    .to_owned()
+                    .split(',')
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .map(|permissions: Vec<String>| {
+                permissions
+                    .into_iter()
+                    .map(|permission| permission.trim().to_owned())
+                    .collect()
+            })
+            // It is safe to unwrap because the value has a clap default.
+            .unwrap();
+
+        match auth::create_token(&secret, permissions, duration) {
             Ok(token) => println!("Bearer {}", token),
             Err(err) => eprintln!("Failed to create authentication token {}", err),
         }

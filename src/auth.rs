@@ -62,16 +62,17 @@ struct Claims {
     user: User,
 }
 
-pub fn create_token(secret: &str) -> Result<String, SubiloError> {
+pub fn create_token(
+    secret: &str,
+    permissions: Vec<String>,
+    duration: i64,
+) -> Result<String, SubiloError> {
+    println!("Perm {:?}", permissions);
+
     let header = Header::new(Algorithm::HS512);
-    let user = User {
-        // TODO: parameterize claims (token command should support creating token with only read permissions)
-        permissions: vec!["job:create".to_owned(), "job:read".to_owned()],
-    };
+    let user = User { permissions };
     let claims = Claims {
-        // TODO: Expiration time should be configurable. Meanwhile we use a
-        // temporal value of 6 months.
-        exp: (chrono::Local::now() + chrono::Duration::hours(4380)).timestamp() as usize,
+        exp: (chrono::Local::now() + chrono::Duration::minutes(duration)).timestamp() as usize,
         iat: chrono::Local::now().timestamp() as usize,
         iss: "subilo:agent".to_owned(),
         user,
