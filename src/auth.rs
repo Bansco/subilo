@@ -65,6 +65,7 @@ struct Claims {
 pub fn create_token(secret: &str) -> Result<String, SubiloError> {
     let header = Header::new(Algorithm::HS512);
     let user = User {
+        // TODO: parameterize claims (token command should support creating token with only read permissions)
         permissions: vec!["job:create".to_owned(), "job:read".to_owned()],
     };
     let claims = Claims {
