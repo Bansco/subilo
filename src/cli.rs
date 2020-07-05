@@ -24,24 +24,6 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
                 .long("verbose")
                 .help("Makes Subilo verbose. Useful for debugging and seeing what's going on \"under the hood\"")
         )
-        // TODO: Move permissions and duration to token subcommand. For some
-        //       reason is not working when I try.
-        .arg(
-            clap::Arg::with_name("permissions")
-                .short("p")
-                .long("permissions")
-                .help("Token permissions")
-                .default_value("job:write,job:read")
-                .takes_value(true),
-        )
-        .arg(
-            clap::Arg::with_name("duration")
-                .short("d")
-                .long("duration")
-                .help("Token duration until expires in minutes")
-                .default_value("43800")
-                .takes_value(true),
-        )
         .subcommand(
             clap::App::new("serve")
                 .about("Start subilo agent")
@@ -63,5 +45,21 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
         .subcommand(
             clap::App::new("token")
                 .about("Create a token based on the secret to authorize agent connections")
+                .arg(
+                    clap::Arg::with_name("permissions")
+                        .short("p")
+                        .long("permissions")
+                        .help("Token permissions")
+                        .default_value("job:write,job:read")
+                        .takes_value(true),
+                )
+                .arg(
+                    clap::Arg::with_name("duration")
+                        .short("d")
+                        .long("duration")
+                        .help("Token duration until expires in minutes")
+                        .default_value("43800")
+                        .takes_value(true),
+                )
         )
 }

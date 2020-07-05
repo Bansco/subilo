@@ -166,18 +166,6 @@ async fn main() -> std::io::Result<()> {
     let default_port = 8080;
     let default_logs_dir = "./logs".to_owned();
 
-    let port: u16 = matches
-        .value_of("port")
-        .and_then(|port| port.parse().ok())
-        .or(config.port)
-        .unwrap_or(default_port);
-
-    let logs_dir = matches
-        .value_of("logs-dir")
-        .map(|s| s.to_string())
-        .or(config.logs_dir)
-        .unwrap_or(default_logs_dir);
-
     let maybe_secret = matches
         .value_of("secret")
         .map(|s| s.to_string())
@@ -192,28 +180,22 @@ async fn main() -> std::io::Result<()> {
         }
     };
 
-    if matches.subcommand_matches("token").is_some() {
+    if let Some(token_matches) = matches.subcommand_matches("token") {
         debug!("Creating authentication token");
 
-        let duration: i64 = matches
+        let duration: i64 = token_matches
             .value_of("duration")
-            .and_then(|port| port.parse().ok())
+            .and_then(|duration| duration.parse().ok())
             // It is safe to unwrap because the value has a clap default.
             .unwrap();
 
-        let permissions = matches
+        let permissions = token_matches
             .value_of("permissions")
             .map(|permissions: &str| {
                 permissions
                     .to_owned()
                     .split(',')
-                    .map(|s| s.to_string())
-                    .collect()
-            })
-            .map(|permissions: Vec<String>| {
-                permissions
-                    .into_iter()
-                    .map(|permission| permission.trim().to_owned())
+                    .map(|s| s.to_string().trim().to_owned())
                     .collect()
             })
             // It is safe to unwrap because the value has a clap default.
@@ -223,45 +205,63 @@ async fn main() -> std::io::Result<()> {
             Ok(token) => println!("Bearer {}", token),
             Err(err) => eprintln!("Failed to create authentication token {}", err),
         }
+
         return Ok(());
     }
 
-    let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-    let socket = SocketAddr::new(localhost, port);
-    let context = web::Data::new(Context {
-        subilofile,
-        logs_dir,
-        secret,
-    });
+    match matches.subcommand_matches("serve") {
+        Some(serve_matches) => {
+            let port: u16 = serve_matches
+                .value_of("port")
+                .and_then(|port| port.parse().ok())
+                .or(config.port)
+                .unwrap_or(default_port);
 
-    debug!("Creating logs directory at '{}'", &context.logs_dir);
-    fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
+            let logs_dir = serve_matches
+                .value_of("logs-dir")
+                .map(|s| s.to_string())
+                .or(config.logs_dir)
+                .unwrap_or(default_logs_dir);
 
-    debug!("Attempting to bind Subilo agent to {}", &socket);
-    let server_bound = HttpServer::new(move || {
-        App::new()
-            .wrap(middleware::Compress::default())
-            .wrap(middleware::Logger::default())
-            .app_data(context.clone())
-            .wrap(HttpAuthentication::bearer(auth::validator))
-            .wrap(Cors::new().supports_credentials().finish())
-            .service(healthz)
-            .service(info)
-            .service(webhook)
-            .service(get_jobs)
-            .service(get_job_by_name)
-    })
-    .bind(socket);
+            let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+            let socket = SocketAddr::new(localhost, port);
+            let context = web::Data::new(Context {
+                subilofile,
+                logs_dir,
+                secret,
+            });
 
-    match server_bound {
-        Ok(server) => {
-            info!("Subilo agent bound to {}", &socket);
-            server.run().await
-        }
-        Err(err) => {
-            error!("Failed to bind Subilo agent to {}. Error: {}", &socket, err);
-            Err(err)
-        }
+            debug!("Creating logs directory at '{}'", &context.logs_dir);
+            fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
+
+            debug!("Attempting to bind Subilo agent to {}", &socket);
+            let server_bound = HttpServer::new(move || {
+                App::new()
+                    .wrap(middleware::Compress::default())
+                    .wrap(middleware::Logger::default())
+                    .app_data(context.clone())
+                    .wrap(HttpAuthentication::bearer(auth::validator))
+                    .wrap(Cors::new().supports_credentials().finish())
+                    .service(healthz)
+                    .service(info)
+                    .service(webhook)
+                    .service(get_jobs)
+                    .service(get_job_by_name)
+            })
+            .bind(socket);
+
+            match server_bound {
+                Ok(server) => {
+                    info!("Subilo agent bound to {}", &socket);
+                    server.run().await
+                }
+                Err(err) => {
+                    error!("Failed to bind Subilo agent to {}. Error: {}", &socket, err);
+                    Err(err)
+                }
+            }
+        },
+        None => Ok(())
     }
 }
 
