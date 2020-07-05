@@ -260,8 +260,8 @@ async fn main() -> std::io::Result<()> {
                     Err(err)
                 }
             }
-        },
-        None => Ok(())
+        }
+        None => Ok(()),
     }
 }
 
