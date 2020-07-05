@@ -1674,6 +1674,7 @@ dependencies = [
  "chrono",
  "clap",
  "env_logger",
+ "futures",
  "jsonwebtoken",
  "log",
  "serde",

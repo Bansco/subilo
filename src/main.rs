@@ -1,6 +1,6 @@
 use actix_cors::Cors;
 use actix_web::error::ResponseError;
-use actix_web::middleware::Logger;
+use actix_web::middleware;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use async_std::fs as async_fs;
@@ -32,6 +32,7 @@ pub struct JobsConfig {
     projects: Vec<core::Project>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
 struct Context {
     subilofile: String,
     logs_dir: String,
@@ -58,8 +59,13 @@ async fn info() -> Result<web::Json<serde_json::value::Value>> {
 async fn webhook(
     body: web::Json<WebhookPayload>,
     ctx: web::Data<Context>,
+    user: auth::User,
 ) -> Result<impl Responder> {
-    debug!("Parsing subilofile");
+    if !user.has_permission("job:create".to_owned()) {
+        warn!("User does not have permission to create a job");
+        return Ok(HttpResponse::Forbidden().body("Forbidden"));
+    }
+
     let subilo_file = async_fs::read_to_string(&ctx.subilofile)
         .await
         .map_err(|err| SubiloError::ReadSubiloFile { source: err })?;
@@ -74,11 +80,12 @@ async fn webhook(
         .find(|project| project.name == body.name);
 
     if project.is_none() {
-        return Ok(HttpResponse::NotFound().body("404 Not Found"));
+        return Ok(HttpResponse::NotFound().body("Not Found"));
     }
 
     debug!("Creating job for project {}", &body.name);
     match core::spawn_job(&ctx.logs_dir, project.unwrap()) {
+        // TODO: Migrate to JSON response.
         Ok(job_id) => Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))),
         Err(err) => Ok(err.error_response()),
     }
@@ -207,7 +214,8 @@ async fn main() -> std::io::Result<()> {
     debug!("Attempting to bind Subilo agent to {}", &socket);
     let server_bound = HttpServer::new(move || {
         App::new()
-            .wrap(Logger::default())
+            .wrap(middleware::Compress::default())
+            .wrap(middleware::Logger::default())
             .app_data(context.clone())
             .wrap(HttpAuthentication::bearer(auth::validator))
             .wrap(Cors::new().supports_credentials().finish())
@@ -234,6 +242,7 @@ async fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use actix_web::http::StatusCode;
     use actix_web::test;
     use serde_json::Value;
 
@@ -244,18 +253,28 @@ mod test {
             logs_dir: String::from("./logs"),
             secret: String::from("secret"),
         });
-        let mut server =
-            test::init_service(App::new().app_data(context.clone()).service(webhook)).await;
+
+        let mut server = test::init_service(
+            App::new()
+                .wrap(middleware::Compress::default())
+                .wrap(middleware::Logger::default())
+                .app_data(context.clone())
+                .wrap(HttpAuthentication::bearer(auth::validator))
+                .service(webhook),
+        )
+        .await;
 
         let payload = r#"{ "name": "test" }"#;
         let json: Value = serde_json::from_str(payload).unwrap();
 
         let req = test::TestRequest::post()
             .uri("/webhook")
+            .header("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJleHAiOjE2MDk2MDU2NDIsImlhdCI6MTU5MzgzNzY0MiwiaXNzIjoic3ViaWxvOmFnZW50IiwidXNlciI6eyJwZXJtaXNzaW9ucyI6WyJqb2I6Y3JlYXRlIiwiam9iOnJlYWQiXX19.xKDuTsbug9XT5IXjnz_TYk-cIsCoqV11skXPa8XK054KFiouxh4jyOL7MX6wXwT1HMs2Mn-r6Ygvuhj-M71Bxg")
             .set_json(&json)
             .to_request();
+
         let res = test::call_service(&mut server, req).await;
 
-        assert!(res.status().is_success());
+        assert_eq!(res.status(), StatusCode::OK);
     }
 }
