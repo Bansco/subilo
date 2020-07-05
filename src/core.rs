@@ -37,6 +37,15 @@ pub struct Project {
     pub commands: Vec<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ProjectInfo {
+    pub name: String,
+    pub home: Option<String>,
+    pub ci: Option<String>,
+    pub repo: Option<String>,
+    pub commands: Vec<String>,
+}
+
 impl Project {
     fn description(&self) -> String {
         format!("Project {} at {}\n", self.name, self.path)

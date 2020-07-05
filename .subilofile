@@ -21,13 +21,13 @@ commands = [
 name = "tsplay"
 path = "~/dev/tsplay"
 commands = [
-  # "docker pull gillchristian/tsplay:latest",
-  # "docker-compose down",
-  # "docker-compose up -d",
   "ls",
   "echo foo bar baz",
   "pwd",
 ]
+home = "https://tsplay.dev"
+ci = "https://github.com/gillchristian/tsplay.dev/actions?query=workflow%3A%22Server%3A+Test+%26+Build%22"
+repo = "https://github.com/gillchristian/tsplay.dev"
 
 [[projects]]
 name = "sarasa"

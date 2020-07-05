@@ -33,6 +33,11 @@ pub struct JobsConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct ProjectsInfo {
+    projects: Vec<core::ProjectInfo>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct Context {
     subilofile: String,
     logs_dir: String,
@@ -53,6 +58,18 @@ async fn healthz() -> impl Responder {
 async fn info() -> Result<web::Json<serde_json::value::Value>> {
     let response = json!({ "version": env!("CARGO_PKG_VERSION") });
     Ok(web::Json(response))
+}
+
+#[get("/projects")]
+async fn list_projects(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value::Value>> {
+    let subilo_file = async_fs::read_to_string(&ctx.subilofile)
+        .await
+        .map_err(|err| SubiloError::ReadSubiloFile { source: err })?;
+
+    let projects_info: ProjectsInfo =
+        toml::from_str(&subilo_file).map_err(|err| SubiloError::ParseSubiloFile { source: err })?;
+
+    Ok(web::Json(json!(projects_info)))
 }
 
 #[post("/webhook")]
@@ -244,6 +261,7 @@ async fn main() -> std::io::Result<()> {
                     .wrap(Cors::new().supports_credentials().finish())
                     .service(healthz)
                     .service(info)
+                    .service(list_projects)
                     .service(webhook)
                     .service(get_jobs)
                     .service(get_job_by_name)
