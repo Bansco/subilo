@@ -67,8 +67,6 @@ pub fn create_token(
     permissions: Vec<String>,
     duration: i64,
 ) -> Result<String, SubiloError> {
-    println!("Perm {:?}", permissions);
-
     let header = Header::new(Algorithm::HS512);
     let user = User { permissions };
     let claims = Claims {

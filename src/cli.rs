@@ -25,7 +25,7 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
                 .help("Makes Subilo verbose. Useful for debugging and seeing what's going on \"under the hood\"")
         )
         // TODO: Move permissions and duration to token subcommand. For some
-        //       reason is not working 
+        //       reason is not working when I try.
         .arg(
             clap::Arg::with_name("permissions")
                 .short("p")
