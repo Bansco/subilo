@@ -49,19 +49,29 @@ struct WebhookPayload {
     name: String,
 }
 
-#[post("/healthz")]
+#[get("/healthz")]
 async fn healthz() -> impl Responder {
     HttpResponse::Ok().body("200 Ok")
 }
 
 #[post("/info")]
-async fn info() -> Result<web::Json<serde_json::value::Value>> {
+async fn info(user: auth::User) -> Result<HttpResponse> {
+    if !user.has_permission("job:read".to_owned()) {
+        debug!("User does not have job:read permission");
+        return Ok(HttpResponse::Forbidden().body("Forbidden"));
+    }
+
     let response = json!({ "version": env!("CARGO_PKG_VERSION") });
-    Ok(web::Json(response))
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[get("/projects")]
-async fn list_projects(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value::Value>> {
+async fn list_projects(ctx: web::Data<Context>, user: auth::User) -> Result<HttpResponse> {
+    if !user.has_permission("projects:read".to_owned()) {
+        debug!("User does not have job:read permission");
+        return Ok(HttpResponse::Forbidden().body("Forbidden"));
+    }
+
     let subilo_file = async_fs::read_to_string(&ctx.subilofile)
         .await
         .map_err(|err| SubiloError::ReadSubiloFile { source: err })?;
@@ -69,7 +79,7 @@ async fn list_projects(ctx: web::Data<Context>) -> Result<web::Json<serde_json::
     let projects_info: ProjectsInfo =
         toml::from_str(&subilo_file).map_err(|err| SubiloError::ParseSubiloFile { source: err })?;
 
-    Ok(web::Json(json!(projects_info)))
+    Ok(HttpResponse::Ok().json(projects_info))
 }
 
 #[post("/webhook")]
@@ -78,8 +88,8 @@ async fn webhook(
     ctx: web::Data<Context>,
     user: auth::User,
 ) -> Result<impl Responder> {
-    if !user.has_permission("job:create".to_owned()) {
-        warn!("User does not have permission to create a job");
+    if !user.has_permission("job:write".to_owned()) {
+        debug!("User does not have permission to create a job");
         return Ok(HttpResponse::Forbidden().body("Forbidden"));
     }
 
@@ -109,7 +119,12 @@ async fn webhook(
 }
 
 #[get("/jobs")]
-async fn get_jobs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value::Value>> {
+async fn get_jobs(ctx: web::Data<Context>, user: auth::User) -> Result<HttpResponse> {
+    if !user.has_permission("job:read".to_owned()) {
+        debug!("User does not have job:read permission");
+        return Ok(HttpResponse::Forbidden().body("Forbidden"));
+    }
+
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
     let mut logs: Vec<String> = Vec::new();
     let mut dir = async_std::fs::read_dir(log_dir).await?;
@@ -133,14 +148,20 @@ async fn get_jobs(ctx: web::Data<Context>) -> Result<web::Json<serde_json::value
         }
     }
 
-    Ok(web::Json(serde_json::to_value(&logs)?))
+    Ok(HttpResponse::Ok().json(logs))
 }
 
 #[get("/jobs/{job_name}")]
 async fn get_job_by_name(
     job_name: web::Path<String>,
     ctx: web::Data<Context>,
-) -> Result<web::Json<serde_json::value::Value>> {
+    user: auth::User,
+) -> Result<HttpResponse> {
+    if !user.has_permission("job:read".to_owned()) {
+        debug!("User does not have job:read permission");
+        return Ok(HttpResponse::Forbidden().body("Forbidden"));
+    }
+
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
 
     let log_file_name = format!("{}/{}.log", &log_dir, job_name);
@@ -152,7 +173,7 @@ async fn get_job_by_name(
     let metadata_json: core::Metadata = serde_json::from_str(&metadata)?;
     let response = json!({ "log": log, "metadata": metadata_json });
 
-    Ok(web::Json(response))
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[actix_rt::main]
@@ -313,7 +334,7 @@ mod test {
 
         let req = test::TestRequest::post()
             .uri("/webhook")
-            .header("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJleHAiOjE2MDk2MDU2NDIsImlhdCI6MTU5MzgzNzY0MiwiaXNzIjoic3ViaWxvOmFnZW50IiwidXNlciI6eyJwZXJtaXNzaW9ucyI6WyJqb2I6Y3JlYXRlIiwiam9iOnJlYWQiXX19.xKDuTsbug9XT5IXjnz_TYk-cIsCoqV11skXPa8XK054KFiouxh4jyOL7MX6wXwT1HMs2Mn-r6Ygvuhj-M71Bxg")
+            .header("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJleHAiOjE1OTY3ODc5MjcsImlhdCI6MTU5NDE1OTkyNywiaXNzIjoic3ViaWxvOmFnZW50IiwidXNlciI6eyJwZXJtaXNzaW9ucyI6WyJqb2I6d3JpdGUiLCJqb2I6cmVhZCIsInByb2plY3RzOnJlYWQiXX19.iGu50FaYlHzq6PdnKCR5zQOkbqsXtw9tkHg2_rbgky1Gz0Xxj6JdRseHiyyEls6U9FsGUVK0gIYBbrzn-90swQ")
             .set_json(&json)
             .to_request();
 

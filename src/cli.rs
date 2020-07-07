@@ -50,7 +50,7 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
                         .short("p")
                         .long("permissions")
                         .help("Token permissions")
-                        .default_value("job:write,job:read")
+                        .default_value("job:write,job:read,projects:read")
                         .takes_value(true),
                 )
                 .arg(
