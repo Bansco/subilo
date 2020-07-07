@@ -88,7 +88,7 @@ async fn webhook(
     ctx: web::Data<Context>,
     user: auth::User,
 ) -> Result<impl Responder> {
-    if !user.has_permission("job:create".to_owned()) {
+    if !user.has_permission("job:write".to_owned()) {
         debug!("User does not have permission to create a job");
         return Ok(HttpResponse::Forbidden().body("Forbidden"));
     }
