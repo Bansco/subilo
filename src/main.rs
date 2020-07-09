@@ -55,23 +55,13 @@ async fn healthz() -> impl Responder {
 }
 
 #[post("/info")]
-async fn info(user: auth::User) -> Result<HttpResponse> {
-    if !user.has_permission("job:read".to_owned()) {
-        debug!("User does not have job:read permission");
-        return Ok(HttpResponse::Forbidden().body("Forbidden"));
-    }
-
+async fn info() -> Result<HttpResponse> {
     let response = json!({ "version": env!("CARGO_PKG_VERSION") });
     Ok(HttpResponse::Ok().json(response))
 }
 
 #[get("/projects")]
-async fn list_projects(ctx: web::Data<Context>, user: auth::User) -> Result<HttpResponse> {
-    if !user.has_permission("projects:read".to_owned()) {
-        debug!("User does not have job:read permission");
-        return Ok(HttpResponse::Forbidden().body("Forbidden"));
-    }
-
+async fn list_projects(ctx: web::Data<Context>) -> Result<HttpResponse> {
     let subilo_file = async_fs::read_to_string(&ctx.subilofile)
         .await
         .map_err(|err| SubiloError::ReadSubiloFile { source: err })?;
@@ -88,7 +78,7 @@ async fn webhook(
     ctx: web::Data<Context>,
     user: auth::User,
 ) -> Result<impl Responder> {
-    if !user.has_permission("job:write".to_owned()) {
+    if !user.has_permission(auth::Permissions::JobWrite) {
         debug!("User does not have permission to create a job");
         return Ok(HttpResponse::Forbidden().body("Forbidden"));
     }
@@ -119,12 +109,7 @@ async fn webhook(
 }
 
 #[get("/jobs")]
-async fn get_jobs(ctx: web::Data<Context>, user: auth::User) -> Result<HttpResponse> {
-    if !user.has_permission("job:read".to_owned()) {
-        debug!("User does not have job:read permission");
-        return Ok(HttpResponse::Forbidden().body("Forbidden"));
-    }
-
+async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
     let mut logs: Vec<String> = Vec::new();
     let mut dir = async_std::fs::read_dir(log_dir).await?;
@@ -155,13 +140,7 @@ async fn get_jobs(ctx: web::Data<Context>, user: auth::User) -> Result<HttpRespo
 async fn get_job_by_name(
     job_name: web::Path<String>,
     ctx: web::Data<Context>,
-    user: auth::User,
 ) -> Result<HttpResponse> {
-    if !user.has_permission("job:read".to_owned()) {
-        debug!("User does not have job:read permission");
-        return Ok(HttpResponse::Forbidden().body("Forbidden"));
-    }
-
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
 
     let log_file_name = format!("{}/{}.log", &log_dir, job_name);
@@ -233,7 +212,9 @@ async fn main() -> std::io::Result<()> {
                 permissions
                     .to_owned()
                     .split(',')
-                    .map(|s| s.to_string().trim().to_owned())
+                    .map(|s| serde_json::from_str(&format!("\"{}\"", s.to_string().trim())))
+                    // TODO: do not ignore parsing errors
+                    .filter_map(Result::ok)
                     .collect()
             })
             // It is safe to unwrap because the value has a clap default.
