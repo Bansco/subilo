@@ -310,7 +310,7 @@ mod test {
         )
         .await;
 
-        let payload = r#"{ "name": "test" }"#;
+        let payload = r#"{ "name": "success" }"#;
         let json: Value = serde_json::from_str(payload).unwrap();
 
         let req = test::TestRequest::post()
