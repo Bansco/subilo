@@ -52,17 +52,27 @@ impl Project {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error("...")]
+pub enum RunError {
+    #[error("[FATAL] Failed to clone log file, {}", source)]
+    CloneLogFile { source: std::io::Error },
+
+    #[error("[FATAL] Failed to execute as child process: {}", source)]
+    ExecuteCommand { source: std::io::Error },
+}
+
 pub fn run_command(
     path: &str,
     command: &str,
     log: &std::fs::File,
-) -> Result<std::process::Output, SubiloError> {
+) -> Result<std::process::Output, RunError> {
     let stdout = log
         .try_clone()
-        .map_err(|err| SubiloError::CloneLogFile { source: err })?;
+        .map_err(|err| RunError::CloneLogFile { source: err })?;
     let stderr = log
         .try_clone()
-        .map_err(|err| SubiloError::CloneLogFile { source: err })?;
+        .map_err(|err| RunError::CloneLogFile { source: err })?;
 
     Command::new("sh")
         .arg("-c")
@@ -71,9 +81,9 @@ pub fn run_command(
         .stderr(stderr)
         .current_dir(path)
         .spawn()
-        .map_err(|err| SubiloError::ExecuteCommand { source: err })?
+        .map_err(|err| RunError::ExecuteCommand { source: err })?
         .wait_with_output()
-        .map_err(|err| SubiloError::ExecuteCommand { source: err })
+        .map_err(|err| RunError::ExecuteCommand { source: err })
 }
 
 pub fn create_job_name(repository: &str) -> String {
@@ -107,19 +117,27 @@ pub fn run_project(
             .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
         let path = shellexpand::tilde(&project.path).into_owned();
-        let output = run_command(&path, &command, &log)?;
 
-        match (output.status.success(), output.status.code()) {
-            (true, _) => (),
-            (_, Some(code)) => {
-                log.write_all(format!("Exit {}\n", code).as_bytes())
-                    .map_err(|err| SubiloError::WriteLogFile { source: err })?;
+        match run_command(&path, &command, &log) {
+            Ok(output) => match (output.status.success(), output.status.code()) {
+                (true, _) => (),
+                (_, Some(code)) => {
+                    log.write_all(format!("Exit {}\n", code).as_bytes())
+                        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
-                metadata.status = MetadataStatus::Failed;
-                break;
-            }
-            (_, None) => {
-                log.write_all("Process terminated by signal\n".to_string().as_bytes())
+                    metadata.status = MetadataStatus::Failed;
+                    break;
+                }
+                (_, None) => {
+                    log.write_all("Process terminated by signal\n".to_string().as_bytes())
+                        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
+
+                    metadata.status = MetadataStatus::Failed;
+                    break;
+                }
+            },
+            Err(err) => {
+                log.write_all(err.to_string().as_bytes())
                     .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
                 metadata.status = MetadataStatus::Failed;

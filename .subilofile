@@ -3,37 +3,35 @@ logs_dir = "./logs"
 secret = "secret"
 
 [[projects]]
-name = "test"
+# A job that always succeds
+name = "success"
 path = "~/"
 commands = [
   "ls",
-  "echo foo bar baz",
   "pwd",
+  # Add more sleep commands to do 'tail -f logs/...' and see output
   "echo sleeping && sleep 5",
-  "echo sleeping && sleep 5",
-  "echo sleeping && sleep 5",
-  "echo sleeping && sleep 5",
-  "pwd"
-  # "exit 137",
+  "echo done",
 ]
 
 [[projects]]
-name = "tsplay"
-path = "~/dev/tsplay"
+# A job that always fails running a command
+name = "failure-command"
+path = "~/"
 commands = [
   "ls",
-  "echo foo bar baz",
   "pwd",
+  "echo sleeping && sleep 5",
+  "exit 137",
 ]
-home = "https://tsplay.dev"
-ci = "https://github.com/gillchristian/tsplay.dev/actions?query=workflow%3A%22Server%3A+Test+%26+Build%22"
-repo = "https://github.com/gillchristian/tsplay.dev"
 
 [[projects]]
-name = "sarasa"
-path = "~/code/sarasa"
+# A job that always fails running because directory does not exist
+name = "failure-job"
+path = "~/foo/bar"
 commands = [
-  "git pull",
-  "cargo build",
-  "cargo run --release",
+  "ls",
+  "pwd",
+  "echo sleeping && sleep 5",
+  "exit 137",
 ]
