@@ -10,13 +10,19 @@ use serde::{Deserialize, Serialize};
 use super::Context;
 use super::SubiloError;
 
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub enum Permissions {
+    #[serde(rename = "job:write")]
+    JobWrite,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct User {
-    permissions: Vec<String>,
+    permissions: Vec<Permissions>,
 }
 
 impl User {
-    pub fn has_permission(&self, permission: String) -> bool {
+    pub fn has_permission(&self, permission: Permissions) -> bool {
         self.permissions.contains(&permission)
     }
 }
@@ -64,7 +70,7 @@ struct Claims {
 
 pub fn create_token(
     secret: &str,
-    permissions: Vec<String>,
+    permissions: Vec<Permissions>,
     duration: i64,
 ) -> Result<String, SubiloError> {
     let header = Header::new(Algorithm::HS512);
