@@ -1,6 +1,3 @@
-port = 8080
-logs_dir = "./logs"
-secret = "secret"
 
 [[projects]]
 # A job that always succeds

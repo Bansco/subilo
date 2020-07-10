@@ -4,18 +4,10 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .setting(clap::AppSettings::SubcommandRequiredElseHelp)
         .arg(
-            clap::Arg::with_name("config")
-                .short("c")
-                .long("config")
-                .help("Path to Subilofile")
-                .takes_value(true)
-                .default_value(".subilofile"),
-        )
-        .arg(
             clap::Arg::with_name("secret")
                 .short("s")
                 .long("secret")
-                .help("Secret to generate and authenticate the token. Can also be provided in the Subilofile")
+                .help("Secret to generate and authenticate the token")
                 .takes_value(true),
         )
         .arg(
@@ -28,10 +20,19 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
             clap::App::new("serve")
                 .about("Start subilo agent")
                 .arg(
+                    clap::Arg::with_name("config")
+                        .short("c")
+                        .long("config")
+                        .help("Path to .subilorc file")
+                        .default_value(".subilorc")
+                        .takes_value(true),
+                )
+                .arg(
                     clap::Arg::with_name("port")
                         .short("p")
                         .long("port")
                         .help("Custom server port")
+                        .default_value("8787")
                         .takes_value(true),
                 )
                 .arg(
@@ -39,6 +40,7 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
                         .short("l")
                         .long("logs-dir")
                         .help("Custom logs directory")
+                        .default_value("./logs")
                         .takes_value(true),
                 ),
         )
