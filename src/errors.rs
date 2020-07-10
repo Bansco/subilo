@@ -8,11 +8,11 @@ pub enum SubiloError {
     #[error("Failed to read application Context")]
     ReadContext {},
 
-    #[error("Failed to read Subilo file, {}", source)]
-    ReadSubiloFile { source: std::io::Error },
+    #[error("Failed to read Subilo rc file, {}", source)]
+    ReadSubiloRC { source: std::io::Error },
 
-    #[error("Failed to parse Subilo file, {}", source)]
-    ParseSubiloFile { source: toml::de::Error },
+    #[error("Failed to parse Subilo rc file, {}", source)]
+    ParseSubiloRC { source: toml::de::Error },
 
     #[error("Failed to create log directory, {}", source)]
     CreateLogDir { source: std::io::Error },

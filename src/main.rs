@@ -39,7 +39,7 @@ pub struct ProjectsInfo {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Context {
-    subilofile: String,
+    subilorc: String,
     logs_dir: String,
     secret: String,
 }
@@ -54,7 +54,7 @@ async fn healthz() -> impl Responder {
     HttpResponse::Ok().body("200 Ok")
 }
 
-#[post("/info")]
+#[get("/info")]
 async fn info() -> Result<HttpResponse> {
     let response = json!({ "version": env!("CARGO_PKG_VERSION") });
     Ok(HttpResponse::Ok().json(response))
@@ -62,12 +62,12 @@ async fn info() -> Result<HttpResponse> {
 
 #[get("/projects")]
 async fn list_projects(ctx: web::Data<Context>) -> Result<HttpResponse> {
-    let subilo_file = async_fs::read_to_string(&ctx.subilofile)
+    let subilorc_file = async_fs::read_to_string(&ctx.subilorc)
         .await
-        .map_err(|err| SubiloError::ReadSubiloFile { source: err })?;
+        .map_err(|err| SubiloError::ReadSubiloRC { source: err })?;
 
     let projects_info: ProjectsInfo =
-        toml::from_str(&subilo_file).map_err(|err| SubiloError::ParseSubiloFile { source: err })?;
+        toml::from_str(&subilorc_file).map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
 
     Ok(HttpResponse::Ok().json(projects_info))
 }
@@ -83,12 +83,12 @@ async fn webhook(
         return Ok(HttpResponse::Forbidden().body("Forbidden"));
     }
 
-    let subilo_file = async_fs::read_to_string(&ctx.subilofile)
+    let subilorc_file = async_fs::read_to_string(&ctx.subilorc)
         .await
-        .map_err(|err| SubiloError::ReadSubiloFile { source: err })?;
+        .map_err(|err| SubiloError::ReadSubiloRC { source: err })?;
 
     let jobs_config: JobsConfig =
-        toml::from_str(&subilo_file).map_err(|err| SubiloError::ParseSubiloFile { source: err })?;
+        toml::from_str(&subilorc_file).map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
 
     debug!("Finding project by name {}", &body.name);
     let project = jobs_config
@@ -168,25 +168,9 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", log_level);
     env_logger::init();
 
-    let subilofile = matches
-        .value_of("config")
-        .map(|path| shellexpand::tilde(&path).into_owned())
-        // It is safe to unwrap because the value has a clap default.
-        .unwrap();
-
-    debug!("Parsing subilofile");
-    let subilo_file = fs::read_to_string(&subilofile).expect("Failed to read subilofile");
-    let config: Config = toml::from_str(&subilo_file).expect("Failed to parse subilofile");
-    // Parse only to validate the projects
-    let _: JobsConfig = toml::from_str(&subilo_file).expect("Failed to parse subilofile");
-
-    let default_port = 8080;
-    let default_logs_dir = "./logs".to_owned();
-
     let maybe_secret = matches
         .value_of("secret")
-        .map(|s| s.to_string())
-        .or(config.secret);
+        .map(|s| s.to_string());
 
     let secret = match maybe_secret {
         Some(secret) => secret,
@@ -200,10 +184,11 @@ async fn main() -> std::io::Result<()> {
     if let Some(token_matches) = matches.subcommand_matches("token") {
         debug!("Creating authentication token");
 
+        // It is safe to unwrap duration and permissions because the values have
+        // a clap default.
         let duration: i64 = token_matches
             .value_of("duration")
             .and_then(|duration| duration.parse().ok())
-            // It is safe to unwrap because the value has a clap default.
             .unwrap();
 
         let permissions = token_matches
@@ -213,7 +198,6 @@ async fn main() -> std::io::Result<()> {
                     .to_owned()
                     .split(',')
                     .map(|s| serde_json::from_str(&format!("\"{}\"", s.to_string().trim())))
-                    // TODO: do not ignore parsing errors
                     .filter_map(Result::ok)
                     .collect()
             })
@@ -230,22 +214,33 @@ async fn main() -> std::io::Result<()> {
 
     match matches.subcommand_matches("serve") {
         Some(serve_matches) => {
+            // It is safe to unwrap config, port and logs_dir because the values
+            // have a clap default.
+
+            let subilorc = serve_matches
+                .value_of("config")
+                .map(|path| shellexpand::tilde(&path).into_owned())
+                .unwrap();
+
+            debug!("Parsing subilorc file");
+            // Parse only to validate the projects configuration
+            let subilorc_file = fs::read_to_string(&subilorc).expect("Failed to read subilorc file");
+            let _: JobsConfig = toml::from_str(&subilorc_file).expect("Failed to parse subilorc file");
+
             let port: u16 = serve_matches
                 .value_of("port")
                 .and_then(|port| port.parse().ok())
-                .or(config.port)
-                .unwrap_or(default_port);
+                .unwrap();
 
             let logs_dir = serve_matches
                 .value_of("logs-dir")
                 .map(|s| s.to_string())
-                .or(config.logs_dir)
-                .unwrap_or(default_logs_dir);
+                .unwrap();
 
             let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
             let socket = SocketAddr::new(localhost, port);
             let context = web::Data::new(Context {
-                subilofile,
+                subilorc,
                 logs_dir,
                 secret,
             });
@@ -295,7 +290,7 @@ mod test {
     #[actix_rt::test]
     async fn test_webhook() {
         let context = web::Data::new(Context {
-            subilofile: "./.subilofile".to_owned(),
+            subilorc: "./.subilorc".to_owned(),
             logs_dir: String::from("./logs"),
             secret: String::from("secret"),
         });
