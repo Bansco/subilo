@@ -130,8 +130,10 @@ subilo --secret super-secret token --permissions job:write
 This token is used to access the logs and project configuration endpoints, these
 endpoints are used by the https://subilo.io/ website.
 
+Example:
+
 ```bash
-subilo --secret super-secret token`
+subilo --secret super-secret token
 ```
 
 ### Systemd configuration (Optional)
