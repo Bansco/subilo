@@ -168,9 +168,7 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", log_level);
     env_logger::init();
 
-    let maybe_secret = matches
-        .value_of("secret")
-        .map(|s| s.to_string());
+    let maybe_secret = matches.value_of("secret").map(|s| s.to_string());
 
     let secret = match maybe_secret {
         Some(secret) => secret,
@@ -224,8 +222,10 @@ async fn main() -> std::io::Result<()> {
 
             debug!("Parsing subilorc file");
             // Parse only to validate the projects configuration
-            let subilorc_file = fs::read_to_string(&subilorc).expect("Failed to read subilorc file");
-            let _: JobsConfig = toml::from_str(&subilorc_file).expect("Failed to parse subilorc file");
+            let subilorc_file =
+                fs::read_to_string(&subilorc).expect("Failed to read subilorc file");
+            let _: JobsConfig =
+                toml::from_str(&subilorc_file).expect("Failed to parse subilorc file");
 
             let port: u16 = serve_matches
                 .value_of("port")
