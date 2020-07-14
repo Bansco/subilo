@@ -6,10 +6,11 @@
 
 Subilo is a deployment agent that allows executing predefined bash commands on
 the server where it is running (VPS, raspberry PI, any Linux machine).
-Subilo is a small server that listens on a specified port for HTTP requests
-(The port should be open to the internet), it exposes a /webhook endpoint that
-receive a project name that is matched against the subilo configuration file
+It's a small server that listens on a specified port for HTTP requests
+(the port should be open to the internet). It exposes a `/webhook` endpoint that
+receives a project name that is matched against the Subilo configuration file
 (.subilorc) to check what commands should be run.
+
 Useful to deploy projects running on a private server where a normal CI does not
 have access to. Just push a webhook after the CI finishes and your project will
 be deployed.
@@ -46,9 +47,9 @@ curl -s -L https://raw.githubusercontent.com/Huemul/subilo/master/install.sh | b
 ```
 
 This command runs the [install script](https://github.com/Huemul/subilo/blob/master/install.sh).
-The script downloads the latest subilo release and attempts to add the subilo bin
-path to the $PATH variable in the correct profile file (~/.profile, ~/.bashrc,
-~/.bash_profile, ~/.zshrc or ~/.config/fish/config.fish)
+The script downloads the latest Subilo release and attempts to add the Subilo bin
+path to the `$PATH` variable in the correct profile file (`~/.profile`, `~/.bashrc`,
+`~/.bash_profile`, `~/.zshrc` or `~/.config/fish/config.fish`)
 
 ### Cargo
 
@@ -98,7 +99,7 @@ SUBCOMMANDS:
 ### Configuration
 
 Create a `.subilorc` file with the required configuration to deploy projects.
-A `subilorc` example can be found [here](https://github.com/Huemul/subilo/blob/master/sample.subilorc).
+A `.subilorc` example can be found [here](https://github.com/Huemul/subilo/blob/master/sample.subilorc).
 
 ### Start
 
@@ -117,7 +118,7 @@ To get access to Subilo agent endpoints, create an authentication token using th
 `token` command in the CLI.
 
 #### Token with write permissions:
-This token is used to access the POST /webhook endpoints that will create a job
+This token is used to access the POST `/webhook` endpoints that will create a job
 and execute the predefined commands for the specified project.
 
 Example:
@@ -128,7 +129,7 @@ subilo --secret super-secret token --permissions job:write
 
 #### Token with only read permissions:
 This token is used to access the logs and project configuration endpoints, these
-endpoints are used by the https://subilo.io/ website.
+endpoints are used by the https://subilo.io website.
 
 Example:
 
