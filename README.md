@@ -43,10 +43,10 @@ curl -X POST 'https://subilo.yourdomain.com/webhook' \
 ### Install script
 
 ```
-curl -s -L https://raw.githubusercontent.com/Huemul/subilo/master/install.sh | bash
+curl -s -L https://raw.githubusercontent.com/huemul/subilo/master/install.sh | bash
 ```
 
-This command runs the [install script](https://github.com/Huemul/subilo/blob/master/install.sh).
+This command runs the [install script](https://github.com/huemul/subilo/blob/master/install.sh).
 The script downloads the latest Subilo release and attempts to add the Subilo bin
 path to the `$PATH` variable in the correct profile file (`~/.profile`, `~/.bashrc`,
 `~/.bash_profile`, `~/.zshrc` or `~/.config/fish/config.fish`)
@@ -59,11 +59,11 @@ $ cargo install subilo
 
 ### Manually
 
-Download the latest [released binary](https://github.com/Huemul/subilo/releases)
+Download the latest [released binary](https://github.com/huemul/subilo/releases)
 and add executable permissions:
 
 ```
-$ wget -O subilo "https://github.com/Huemul/subilo/releases/download/v0.0.1/subilo-x86-64-linux"
+$ wget -O subilo "https://github.com/huemul/subilo/releases/download/v0.0.2/subilo-x86-64-linux"
 $ chmod +x subilo
 ```
 
@@ -99,7 +99,7 @@ SUBCOMMANDS:
 ### Configuration
 
 Create a `.subilorc` file with the required configuration to deploy projects.
-A `.subilorc` example can be found [here](https://github.com/Huemul/subilo/blob/master/sample.subilorc).
+A `.subilorc` example can be found [here](https://github.com/huemul/subilo/blob/master/sample.subilorc).
 
 ### Start
 
