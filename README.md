@@ -63,7 +63,7 @@ Download the latest [released binary](https://github.com/huemul/subilo/releases)
 and add executable permissions:
 
 ```
-$ wget -O subilo "https://github.com/huemul/subilo/releases/download/v0.0.2/subilo-x86-64-linux"
+$ wget -O subilo "https://github.com/huemul/subilo/releases/download/v0.1.2/subilo-x86-64-linux"
 $ chmod +x subilo
 ```
 
