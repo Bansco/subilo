@@ -1,3 +1,4 @@
+use actix::prelude::*;
 use actix_cors::Cors;
 use actix_web::error::ResponseError;
 use actix_web::middleware;
@@ -16,6 +17,7 @@ extern crate log;
 mod auth;
 mod cli;
 mod core;
+mod database;
 mod errors;
 
 use crate::errors::SubiloError;
@@ -76,6 +78,7 @@ async fn list_projects(ctx: web::Data<Context>) -> Result<HttpResponse> {
 async fn webhook(
     body: web::Json<WebhookPayload>,
     ctx: web::Data<Context>,
+    database: web::Data<Addr<database::Database>>,
     user: auth::User,
 ) -> Result<impl Responder> {
     if !user.has_permission(auth::Permissions::JobWrite) {
@@ -248,12 +251,21 @@ async fn main() -> std::io::Result<()> {
             debug!("Creating logs directory at '{}'", &context.logs_dir);
             fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
 
+            debug!("Connecting to the local database");
+            let db = database::Database::create(|_ctx| database::Database::new("database.db"));
+
+            db.do_send(database::NewJob {
+                id: "123".to_owned(),
+                name: "test".to_owned(),
+            });
+
             debug!("Attempting to bind Subilo agent to {}", &socket);
             let server_bound = HttpServer::new(move || {
                 App::new()
                     .wrap(middleware::Compress::default())
                     .wrap(middleware::Logger::default())
                     .app_data(context.clone())
+                    .app_data(db.clone())
                     .wrap(HttpAuthentication::bearer(auth::validator))
                     .wrap(Cors::new().supports_credentials().finish())
                     .service(healthz)
@@ -289,7 +301,7 @@ mod test {
 
     #[actix_rt::test]
     async fn test_webhook() {
-        let context = web::Data::new(Context {
+        let context = web::Data::new(super::Context {
             subilorc: "./.subilorc".to_owned(),
             logs_dir: String::from("./logs"),
             secret: String::from("secret"),
