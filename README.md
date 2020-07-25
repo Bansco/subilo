@@ -6,7 +6,7 @@
 
 
 Subilo is a tool to setup continuous deployments for applications running on
-machines with no external integrations like IoT devices and VPSs.
+machines with no external integrations, like IoT devices and VPSs.
 
 #### How it works: 
 Subilo is a small server that lives on your app's machine and listens for
@@ -32,7 +32,7 @@ commands = [
 
 Webhook:
 
-This webhook is usually sent from a CI after the tests passed.
+This webhook is usually sent from a CI run after the tests passed.
 
 ```bash
 curl -X POST 'https://subilo.yourdomain.com/webhook' \
