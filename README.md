@@ -4,20 +4,20 @@
 
 [![Rust](https://github.com/huemul/subilo/workflows/Rust/badge.svg)](https://github.com/Huemul/subilo/actions?query=workflow%3ARust)
 
-Subilo is a deployment agent that allows executing predefined bash commands on
-the server where it is running (VPS, raspberry PI, any Linux machine).
-It's a small server that listens on a specified port for HTTP requests
-(the port should be open to the internet). It exposes a `/webhook` endpoint that
-receives a project name that is matched against the Subilo configuration file
-(.subilorc) to check what commands should be run.
 
-Useful to deploy projects running on a private server where a normal CI does not
-have access to. Just push a webhook after the CI finishes and your project will
-be deployed.
+Subilo is a tool to setup continuous deployments for applications running on
+machines with no external integrations like IoT devices and VPSs.
 
-### Basic example: 
+#### How it works: 
+Subilo is a small server that lives on your app's machine and listens for
+authenticated HTTP webhooks. These webhooks have information about what app
+should be deployed matching the Subilo configuration file (`.subilorc`).
+This configuration file also defines what steps should be taken to successfully
+deploy an application, for example: `git pull`, `./restart-server` and `./notify`.
 
-Configuration:
+#### Basic example: 
+
+Configuration (`.subilorc`):
 
 ```toml
 [[projects]]
@@ -32,13 +32,19 @@ commands = [
 
 Webhook:
 
+This webhook is usually sent from a CI after the tests passed.
+
 ```bash
 curl -X POST 'https://subilo.yourdomain.com/webhook' \
   -H 'Authorization: Bearer ********' \
   -d '{ "name": "foo-project" }'
 ```
 
-## Install and setup
+Status and logs of these project deployments can be checked in the [Dashboard](https://subilo.io/jobs)
+using the URL and authentication token provided by the Subilo agent.
+
+
+## Install
 
 ### Install script
 
@@ -98,13 +104,13 @@ SUBCOMMANDS:
 
 ### Configuration
 
-Create a `.subilorc` file with the required configuration to deploy projects.
-A `.subilorc` example can be found [here](https://github.com/huemul/subilo/blob/master/sample.subilorc).
+Create a `.subilorc` file with the required configuration.
+A `.subilorc` example can be found [here](https://github.com/huemul/subilo/blob/master/configuration.md).
 
 ### Start
 
 To start the Subilo agent the `serve` command should be used specifying the
-authentication secret and optionally the port, config file and logs directory.
+authentication secret, the port (optional), config file and logs directory (optional).
 
 Example:
 
@@ -118,13 +124,13 @@ To get access to Subilo agent endpoints, create an authentication token using th
 `token` command in the CLI.
 
 #### Token with write permissions:
-This token is used to access the POST `/webhook` endpoints that will create a job
-and execute the predefined commands for the specified project.
+This token is used to access the POST `/webhook` endpoint and deploy the
+an application using the predefined commands in the `.subilorc` file.
 
 Example:
 
 ```bash
-subilo --secret super-secret token --permissions job:write
+subilo --secret super-secret token
 ```
 
 #### Token with only read permissions:
@@ -134,7 +140,7 @@ endpoints are used by the https://subilo.io website.
 Example:
 
 ```bash
-subilo --secret super-secret token
+subilo --secret super-secret token --permissions job:read
 ```
 
 ### Systemd configuration (Optional)
@@ -158,17 +164,29 @@ $ systemctl enable /etc/systemd/system/subilo.service
 $ systemctl start subilo
 ```
 
-To read logs and check status the following commands can be used:
+To read logs and check status from systemctl, the following commands can be used:
 
 ```bash
 $ systemctl status subilo
 $ journalctl -u subilo -b
 ```
 
-### Trigger jobs
+### Setup deployment webhooks 
 
 Once Subilo is running and exposed to the internet, deployment jobs can be
 triggered by POSTing to the `/webhook` endpoint wiht the project name.
+
+The project name is matched against the `.subilorc` configuration file and the
+specified commands are run to deploy the project.
+
+#### CI
+
+Usually, this webhook is used by a CI, so after the application's tests passed,
+the application can be deployed safely.
+Store the token as a secret in the CI configuration and add a curl command to
+POST to the `/webhook` endpoint to trigger a deploy.
+
+Example:
 
 ```bash
 curl -X POST 'https://subilo.yourdomain.com/webhook' \
