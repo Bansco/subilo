@@ -38,6 +38,7 @@ This webhook is usually sent from a CI run after the tests passed.
 ```bash
 curl -X POST 'https://subilo.yourdomain.com/webhook' \
   -H 'Authorization: Bearer ********' \
+  -H 'Content-Type: application/json' \
   -d '{ "name": "foo-app" }'
 ```
 
@@ -197,6 +198,7 @@ name on the payload.
 ```bash
 curl -X POST 'https://subilo.yourdomain.com/webhook' \
   -H 'Authorization: Bearer ********' \
+  -H 'Content-Type: application/json' \
   -d '{ "name": "foo-app" }'
 ```
 
