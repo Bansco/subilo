@@ -90,7 +90,7 @@ async fn webhook(
     let jobs_config: JobsConfig =
         toml::from_str(&subilorc_file).map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
 
-    debug!("Finding project by name {}", &body.name);
+    debug!("Finding project by name ({})", &body.name);
     let project = jobs_config
         .projects
         .into_iter()
@@ -100,7 +100,6 @@ async fn webhook(
         return Ok(HttpResponse::NotFound().body("Not Found"));
     }
 
-    debug!("Creating job for project {}", &body.name);
     match core::spawn_job(&ctx.logs_dir, project.unwrap()) {
         // TODO: Migrate to JSON response.
         Ok(job_id) => Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))),
@@ -220,7 +219,7 @@ async fn main() -> std::io::Result<()> {
                 .map(|path| shellexpand::tilde(&path).into_owned())
                 .unwrap();
 
-            debug!("Parsing subilorc file");
+            debug!("Parsing .subilorc file");
             // Parse only to validate the projects configuration
             let subilorc_file =
                 fs::read_to_string(&subilorc).expect("Failed to read subilorc file");
@@ -248,7 +247,7 @@ async fn main() -> std::io::Result<()> {
             debug!("Creating logs directory at '{}'", &context.logs_dir);
             fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
 
-            debug!("Attempting to bind Subilo agent to {}", &socket);
+            debug!("Attempting to bind Subilo agent on {}", &socket);
             let server_bound = HttpServer::new(move || {
                 App::new()
                     .wrap(middleware::Compress::default())
