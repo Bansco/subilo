@@ -60,7 +60,7 @@ The script downloads the latest Subilo release and attempts to add the Subilo bi
 path to the `$PATH` in the correct profile file (`~/.profile`, `~/.bashrc`,
 `~/.bash_profile`, `~/.zshrc` or `~/.config/fish/config.fish`)
 
-### Build source with Cargo
+## Cargo
 
 ```
 cargo install subilo
