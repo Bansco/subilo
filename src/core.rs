@@ -37,6 +37,12 @@ pub struct Project {
     pub commands: Vec<String>,
 }
 
+impl Project {
+    fn description(&self) -> String {
+        format!("Project '{}' at {}\n", self.name, self.path)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProjectInfo {
     pub name: String,
@@ -44,12 +50,6 @@ pub struct ProjectInfo {
     pub ci: Option<String>,
     pub repo: Option<String>,
     pub commands: Vec<String>,
-}
-
-impl Project {
-    fn description(&self) -> String {
-        format!("Project {} at {}\n", self.name, self.path)
-    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -102,7 +102,7 @@ pub fn create_metadata_log_name(job: &str, log_dir: &str) -> String {
     format!("{}/{}.json", log_dir, job)
 }
 
-pub fn run_project(
+pub fn run_project_deployment(
     project: Project,
     mut metadata: Metadata,
     mut log: std::fs::File,
@@ -112,7 +112,7 @@ pub fn run_project(
         .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
     for command in &project.commands {
-        debug!("Running command {}", &command);
+        debug!("Running command: {}", &command);
         log.write_all(format!("$ {}\n", &command).as_bytes())
             .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
@@ -187,15 +187,17 @@ pub fn spawn_job(logs_dir: &str, project: Project) -> Result<String, SubiloError
         .write_all(metadata.to_json_string()?.as_bytes())
         .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
+    debug!("Spawning thread to run deployment for '{}'", &project.name);
     thread::spawn(move || {
-        debug!("Starting to process {} project", &project.name);
-
         let project_name = project.name.clone();
-        let result = run_project(project, metadata, log, metadata_log);
+        let result = run_project_deployment(project, metadata, log, metadata_log);
 
         match result {
-            Ok(_) => debug!("Project {} processed successfully", &project_name),
-            Err(err) => error!("Failed processing {} project, {}", &project_name, err),
+            Ok(_) => debug!("Deployment for '{}' processed successfully", &project_name),
+            Err(err) => error!(
+                "Failed running deployment for '{}'.\nWith error:\n{}",
+                &project_name, err
+            ),
         }
     });
 
