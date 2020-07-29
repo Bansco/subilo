@@ -1,11 +1,11 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
 use std::process::Command;
-use std::{fs, str, thread};
+use std::{str, thread};
 
 use crate::errors::SubiloError;
+use crate::job;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -24,13 +24,13 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    fn to_json_string(&self) -> Result<String, SubiloError> {
+    pub fn to_json_string(&self) -> Result<String, SubiloError> {
         serde_json::to_string(&self)
             .map_err(|err| SubiloError::SerializeMetadataToJSON { source: err })
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Project {
     pub name: String,
     pub path: String,
@@ -86,27 +86,12 @@ pub fn run_command(
         .map_err(|err| RunError::ExecuteCommand { source: err })
 }
 
-pub fn create_job_name(repository: &str) -> String {
-    let repository = repository.replace("/", "-");
-    let now = Utc::now().format("%Y-%m-%d--%H-%M-%S").to_string();
-    format!("{}_{}", repository, now)
-}
-
-pub fn create_log_name(job: &str, log_dir: &str) -> String {
-    let log_dir = shellexpand::tilde(&log_dir).into_owned();
-    format!("{}/{}.log", log_dir, job)
-}
-
-pub fn create_metadata_log_name(job: &str, log_dir: &str) -> String {
-    let log_dir = shellexpand::tilde(&log_dir).into_owned();
-    format!("{}/{}.json", log_dir, job)
-}
-
 pub fn run_project_deployment(
     project: Project,
-    mut metadata: Metadata,
-    mut log: std::fs::File,
-    mut metadata_log: std::fs::File,
+    witness: job::JobWitness,
+    // mut metadata: Metadata,
+    // mut log: std::fs::File,
+    // mut metadata_log: std::fs::File,
 ) -> Result<(), SubiloError> {
     log.write_all(project.description().as_bytes())
         .map_err(|err| SubiloError::WriteLogFile { source: err })?;
@@ -160,37 +145,13 @@ pub fn run_project_deployment(
     Ok(())
 }
 
-pub fn spawn_job(logs_dir: &str, project: Project) -> Result<String, SubiloError> {
-    let job_name = create_job_name(&project.name);
-    let file_name = create_log_name(&job_name, logs_dir);
-    let metadata_file_name = create_metadata_log_name(&job_name, logs_dir);
-
-    fs::create_dir_all(logs_dir).map_err(|err| SubiloError::CreateLogDir { source: err })?;
-
-    let metadata = Metadata {
-        name: project.name.clone(),
-        status: MetadataStatus::Started,
-        started_at: Utc::now().to_rfc3339(),
-        ended_at: None,
-    };
-
-    let log =
-        fs::File::create(file_name).map_err(|err| SubiloError::CreateLogFile { source: err })?;
-
-    let mut metadata_log = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(metadata_file_name)
-        .map_err(|err| SubiloError::CreateLogFile { source: err })?;
-
-    metadata_log
-        .write_all(metadata.to_json_string()?.as_bytes())
-        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
+pub fn spawn_job(project: Project, witness: job::JobWitness) -> Result<String, SubiloError> {
+    witness.start(project.clone());
 
     debug!("Spawning thread to run deployment for '{}'", &project.name);
     thread::spawn(move || {
         let project_name = project.name.clone();
-        let result = run_project_deployment(project, metadata, log, metadata_log);
+        let result = run_project_deployment(project, witness);
 
         match result {
             Ok(_) => debug!("Deployment for '{}' processed successfully", &project_name),

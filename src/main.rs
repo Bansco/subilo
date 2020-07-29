@@ -19,6 +19,7 @@ mod cli;
 mod core;
 mod database;
 mod errors;
+mod job;
 
 use crate::errors::SubiloError;
 
@@ -78,7 +79,7 @@ async fn list_projects(ctx: web::Data<Context>) -> Result<HttpResponse> {
 async fn webhook(
     body: web::Json<WebhookPayload>,
     ctx: web::Data<Context>,
-    database: web::Data<Addr<database::Database>>,
+    witness: job::JobWitness,
     user: auth::User,
 ) -> Result<impl Responder> {
     if !user.has_permission(auth::Permissions::JobWrite) {
@@ -103,7 +104,7 @@ async fn webhook(
         return Ok(HttpResponse::NotFound().body("Not Found"));
     }
 
-    match core::spawn_job(&ctx.logs_dir, project.unwrap()) {
+    match core::spawn_job(project.unwrap(), witness) {
         // TODO: Migrate to JSON response.
         Ok(job_id) => Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))),
         Err(err) => Ok(err.error_response()),
@@ -253,13 +254,7 @@ async fn main() -> std::io::Result<()> {
             debug!("Connecting to the local database");
             let db = database::Database::create(|_ctx| database::Database::new("database.db"));
 
-            db.do_send(database::NewJob {
-                id: "123".to_owned(),
-                name: "test".to_owned(),
-            });
-
             debug!("Attempting to bind Subilo agent to {}", &socket);
-            debug!("Attempting to bind Subilo agent on {}", &socket);
             let server_bound = HttpServer::new(move || {
                 App::new()
                     .wrap(middleware::Compress::default())

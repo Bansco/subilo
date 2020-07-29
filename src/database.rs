@@ -8,7 +8,7 @@ pub struct Database {
 
 impl Database {
     pub fn new(path: &str) -> Self {
-        let connection = Connection::open(path).unwrap();
+        let connection = Connection::open(path).expect("Failed to connecet to the local database");
         Self { connection }
     }
 }
