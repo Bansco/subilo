@@ -1,11 +1,10 @@
-use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use std::io::{Seek, SeekFrom, Write};
-use std::process::Command;
-use std::{str, thread};
-
 use crate::errors::SubiloError;
 use crate::job;
+use crate::Context;
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
+use std::process::Command;
+use std::{str, thread};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -23,13 +22,6 @@ pub struct Metadata {
     pub ended_at: Option<String>,
 }
 
-impl Metadata {
-    pub fn to_json_string(&self) -> Result<String, SubiloError> {
-        serde_json::to_string(&self)
-            .map_err(|err| SubiloError::SerializeMetadataToJSON { source: err })
-    }
-}
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Project {
     pub name: String,
@@ -38,7 +30,7 @@ pub struct Project {
 }
 
 impl Project {
-    fn description(&self) -> String {
+    pub fn description(&self) -> String {
         format!("Project '{}' at {}\n", self.name, self.path)
     }
 }
@@ -65,13 +57,13 @@ pub enum RunError {
 pub fn run_command(
     path: &str,
     command: &str,
-    log: &std::fs::File,
+    witness: &job::Witness,
 ) -> Result<std::process::Output, RunError> {
-    let stdout = log
-        .try_clone()
+    let stdout = witness
+        .try_clone_log()
         .map_err(|err| RunError::CloneLogFile { source: err })?;
-    let stderr = log
-        .try_clone()
+    let stderr = witness
+        .try_clone_log()
         .map_err(|err| RunError::CloneLogFile { source: err })?;
 
     Command::new("sh")
@@ -88,79 +80,62 @@ pub fn run_command(
 
 pub fn run_project_deployment(
     project: Project,
-    witness: job::JobWitness,
-    // mut metadata: Metadata,
-    // mut log: std::fs::File,
-    // mut metadata_log: std::fs::File,
+    mut witness: job::Witness,
 ) -> Result<(), SubiloError> {
-    log.write_all(project.description().as_bytes())
-        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
-
     for command in &project.commands {
         debug!("Running command: {}", &command);
-        log.write_all(format!("$ {}\n", &command).as_bytes())
-            .map_err(|err| SubiloError::WriteLogFile { source: err })?;
+
+        witness.report_command(&command)?;
 
         let path = shellexpand::tilde(&project.path).into_owned();
 
-        match run_command(&path, &command, &log) {
-            Ok(output) => match (output.status.success(), output.status.code()) {
-                (true, _) => (),
-                (_, Some(code)) => {
-                    log.write_all(format!("Exit {}\n", code).as_bytes())
-                        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
-
-                    metadata.status = MetadataStatus::Failed;
-                    break;
+        match run_command(&path, &command, &witness) {
+            Ok(output) => {
+                if output.status.success() {
+                    witness.report_command_success()?
+                } else {
+                    witness.report_command_error_by_code(output.status.code())?
                 }
-                (_, None) => {
-                    log.write_all("Process terminated by signal\n".to_string().as_bytes())
-                        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
-
-                    metadata.status = MetadataStatus::Failed;
-                    break;
-                }
-            },
-            Err(err) => {
-                log.write_all(err.to_string().as_bytes())
-                    .map_err(|err| SubiloError::WriteLogFile { source: err })?;
-
-                metadata.status = MetadataStatus::Failed;
-                break;
             }
+            Err(err) => witness.report_command_error(err)?,
         }
     }
-
-    if let MetadataStatus::Started = metadata.status {
-        metadata.status = MetadataStatus::Succeeded;
-    }
-    metadata.ended_at = Some(Utc::now().to_rfc3339());
-    metadata_log
-        .seek(SeekFrom::Start(0))
-        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
-    metadata_log
-        .write_all(metadata.to_json_string()?.as_bytes())
-        .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
     Ok(())
 }
 
-pub fn spawn_job(project: Project, witness: job::JobWitness) -> Result<String, SubiloError> {
-    witness.start(project.clone());
+pub fn spawn_job(
+    project: Project,
+    ctx: actix_web::web::Data<Context>,
+) -> Result<String, SubiloError> {
+    let job_name = create_job_name(&project.name);
+    let witness = job::Witness::new(job_name.clone(), project.clone(), ctx)?;
 
-    debug!("Spawning thread to run deployment for '{}'", &project.name);
+    debug!(
+        "Spawning thread to run deployment for project {}",
+        &project.name
+    );
     thread::spawn(move || {
         let project_name = project.name.clone();
         let result = run_project_deployment(project, witness);
 
         match result {
-            Ok(_) => debug!("Deployment for '{}' processed successfully", &project_name),
+            Ok(_) => debug!(
+                "Deployment for project {} processed successfully",
+                project_name
+            ),
             Err(err) => error!(
-                "Failed running deployment for '{}'.\nWith error:\n{}",
-                &project_name, err
+                "Failed running deployment for project {}.\nWith error:\n{}",
+                project_name, err
             ),
         }
     });
 
     Ok(job_name)
+}
+
+pub fn create_job_name(repository: &str) -> String {
+    let repository = repository.replace("/", "-");
+    let now = Utc::now().format("%Y-%m-%d--%H-%M-%S").to_string();
+    format!("{}_{}", repository, now)
 }

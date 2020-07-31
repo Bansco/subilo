@@ -26,9 +26,6 @@ pub enum SubiloError {
     #[error("Failed to read file name")]
     ReadFileName {},
 
-    #[error("Failed to serialize Metadata structure to JSON, {}", source)]
-    SerializeMetadataToJSON { source: serde_json::error::Error },
-
     #[error("Failed to authenticate request, {}", source)]
     Authenticate { source: jsonwebtoken::errors::Error },
 }

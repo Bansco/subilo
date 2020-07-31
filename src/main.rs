@@ -40,11 +40,11 @@ pub struct ProjectsInfo {
     projects: Vec<core::ProjectInfo>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct Context {
+pub struct Context {
     subilorc: String,
     logs_dir: String,
     secret: String,
+    database: Addr<database::Database>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -79,7 +79,6 @@ async fn list_projects(ctx: web::Data<Context>) -> Result<HttpResponse> {
 async fn webhook(
     body: web::Json<WebhookPayload>,
     ctx: web::Data<Context>,
-    witness: job::JobWitness,
     user: auth::User,
 ) -> Result<impl Responder> {
     if !user.has_permission(auth::Permissions::JobWrite) {
@@ -104,7 +103,7 @@ async fn webhook(
         return Ok(HttpResponse::NotFound().body("Not Found"));
     }
 
-    match core::spawn_job(project.unwrap(), witness) {
+    match core::spawn_job(project.unwrap(), ctx.clone()) {
         // TODO: Migrate to JSON response.
         Ok(job_id) => Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))),
         Err(err) => Ok(err.error_response()),
@@ -240,19 +239,20 @@ async fn main() -> std::io::Result<()> {
                 .map(|s| s.to_string())
                 .unwrap();
 
+            debug!("Connecting to the local database");
+            let db = database::Database::create(|_ctx| database::Database::new("database.db"));
+
             let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
             let socket = SocketAddr::new(localhost, port);
             let context = web::Data::new(Context {
                 subilorc,
                 logs_dir,
                 secret,
+                database: db.clone(),
             });
 
             debug!("Creating logs directory at '{}'", &context.logs_dir);
             fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
-
-            debug!("Connecting to the local database");
-            let db = database::Database::create(|_ctx| database::Database::new("database.db"));
 
             debug!("Attempting to bind Subilo agent to {}", &socket);
             let server_bound = HttpServer::new(move || {
@@ -260,7 +260,6 @@ async fn main() -> std::io::Result<()> {
                     .wrap(middleware::Compress::default())
                     .wrap(middleware::Logger::default())
                     .app_data(context.clone())
-                    .app_data(db.clone())
                     .wrap(HttpAuthentication::bearer(auth::validator))
                     .wrap(Cors::new().supports_credentials().finish())
                     .service(healthz)

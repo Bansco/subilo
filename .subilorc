@@ -1,6 +1,6 @@
 [[projects]]
 # A job that always succeds
-name = "success"
+name = "test"
 path = "~/"
 commands = [
   "ls",

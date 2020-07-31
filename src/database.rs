@@ -1,6 +1,6 @@
 use actix::prelude::*;
 use rusqlite::NO_PARAMS;
-use rusqlite::{Connection, Result};
+use rusqlite::{params, Connection, Result};
 
 pub struct Database {
     connection: rusqlite::Connection,
@@ -13,34 +13,25 @@ impl Database {
     }
 }
 
-// Provide Actor implementation for Database
 impl Actor for Database {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Context<Self>) {
-        let query = "CREATE TABLE IF NOT EXISTS jobs (id integer primary key, name text not null)";
+    fn started(&mut self, _ctx: &mut Context<Self>) {
+        let query = "
+            CREATE TABLE IF NOT EXISTS jobs (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                ended_at TEXT
+            )
+        ";
         self.connection.execute(query, NO_PARAMS).unwrap();
     }
 
-    fn stopped(&mut self, ctx: &mut Context<Self>) {
+    fn stopped(&mut self, _ctx: &mut Context<Self>) {
         debug!("Actor is stopped");
     }
-}
-
-/// Define handler for `Ping` message
-impl Handler<Ping> for Database {
-    type Result = Result<bool, std::io::Error>;
-
-    fn handle(&mut self, msg: Ping, ctx: &mut Context<Self>) -> Self::Result {
-        debug!("Ping received");
-
-        Ok(true)
-    }
-}
-
-struct Ping;
-impl Message for Ping {
-    type Result = Result<bool, std::io::Error>;
 }
 
 #[derive(Message)]
@@ -48,17 +39,48 @@ impl Message for Ping {
 pub struct NewJob {
     pub id: String,
     pub name: String,
+    pub started_at: String,
 }
 
-// Simple message handler for NewJob message
 impl Handler<NewJob> for Database {
     type Result = ();
 
-    fn handle(&mut self, msg: NewJob, ctx: &mut Context<Self>) {
-        let query = "INSERT INTO jobs (id, name) VALUES (?1, ?2)";
-        match self.connection.execute(query, &[&msg.id, &msg.name]) {
-            Ok(_) => debug!("Job saved in the database"),
-            Err(err) => error!("Failed to save job in the database: {}", err),
+    fn handle(&mut self, job: NewJob, _ctx: &mut Context<Self>) {
+        let query = "
+            INSERT INTO jobs (id, name, status, started_at)
+            VALUES (?1, ?2, ?3, ?4)
+        ";
+        let params = params![job.id, job.name, "started".to_owned(), job.started_at];
+
+        match self.connection.execute(query, params) {
+            Ok(_) => debug!("Job inserted successfully"),
+            Err(err) => error!("Failed to insert job {}", err),
+        }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct UpdateJob {
+    pub id: String,
+    pub status: String,
+    pub ended_at: String,
+}
+
+impl Handler<UpdateJob> for Database {
+    type Result = ();
+
+    fn handle(&mut self, job: UpdateJob, _ctx: &mut Context<Self>) {
+        let query = "
+            UPDATE jobs
+            SET status = ?2, ended_at = ?3
+            WHERE id = ?1
+        ";
+        let params = params![job.id, job.status, job.ended_at];
+
+        match self.connection.execute(query, params) {
+            Ok(_) => debug!("Job updated successfully"),
+            Err(err) => error!("Failed to update job {}", err),
         }
     }
 }
