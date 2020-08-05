@@ -5,7 +5,6 @@ use actix_web::middleware;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use async_std::fs as async_fs;
-use async_std::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -111,31 +110,28 @@ async fn webhook(
 }
 
 #[get("/jobs")]
-async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
-    let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
-    let mut logs: Vec<String> = Vec::new();
-    let mut dir = async_std::fs::read_dir(log_dir).await?;
+async fn get_jobs(ctx: web::Data<Context>) -> HttpResponse {
+    let query = database::Query {
+        query: job::GET_ALL_JOBS_QUERY.to_owned(),
+        params: vec![],
+        map_result: |row| {
+            Ok(job::Job {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                status: row.get(2)?,
+                started_at: row.get(3)?,
+                ended_at: row.get(4)?,
+            })
+        },
+    };
 
-    while let Some(entry) = dir.next().await {
-        let path = entry?.path();
+    let jobs = ctx.database.send(query).await;
 
-        let file_name = match path.file_name() {
-            Some(name) => name
-                .to_owned()
-                .into_string()
-                .map_err(|_err| SubiloError::ReadFileName {})?,
-            None => {
-                error!("Failed to read file at path {:?}", path);
-                continue;
-            }
-        };
-
-        if file_name.ends_with(".json") {
-            logs.push(file_name.replace(".json", ""));
-        }
+    // TODO: Handle errors
+    match jobs {
+        Ok(result) => HttpResponse::Ok().json(result.unwrap()),
+        _ => HttpResponse::Ok().finish(),
     }
-
-    Ok(HttpResponse::Ok().json(logs))
 }
 
 #[get("/jobs/{job_name}")]

@@ -2,9 +2,12 @@ use crate::core;
 use crate::database;
 use crate::Context;
 use crate::SubiloError;
+use futures::executor::block_on;
 use nanoid::nanoid;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
+
 
 pub const CREATE_JOB_TABLE_QUERY: &str = "
     CREATE TABLE IF NOT EXISTS jobs (
@@ -26,6 +29,34 @@ pub const UPDATE_JOB_QUERY: &str = "
     SET status = ?2, ended_at = ?3
     WHERE id = ?1
 ";
+
+pub const GET_ALL_JOBS_QUERY: &str = "
+    SELECT id, name, status, started_at, ended_at
+    FROM jobs
+";
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum JobStatus {
+    Started,
+    Succeeded,
+    Failed,
+}
+
+impl std::fmt::Display for JobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Job {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    pub started_at: String,
+    pub ended_at: String,
+}
 
 pub struct Witness {
     id: String,
@@ -50,12 +81,14 @@ impl Witness {
             .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
         let id = nanoid!();
+        let status = JobStatus::Started.to_string().to_lowercase();
         let started_at = now();
 
-        context.database.do_send(database::Execute {
+        // TODO: Handle errors
+        block_on(context.database.send(database::Execute {
             query: INSERT_JOB_QUERY.to_owned(),
-            params: vec![id.clone(), job_name, started_at],
-        });
+            params: vec![id.clone(), job_name, status, started_at],
+        }));
 
         Ok(Self { id, context, log })
     }
@@ -68,7 +101,9 @@ impl Witness {
 
     pub fn report_command_success(&self) -> Result<(), SubiloError> {
         let ended_at = now();
-        let status = "succeeded".to_owned();
+        let status = JobStatus::Succeeded.to_string().to_lowercase();
+
+        // TODO: Handle errors
         self.context.database.do_send(database::Execute {
             query: UPDATE_JOB_QUERY.to_owned(),
             params: vec![self.id.clone(), status, ended_at],
@@ -93,7 +128,9 @@ impl Witness {
         };
 
         let ended_at = now();
-        let status = "failed".to_owned();
+        let status = JobStatus::Failed.to_string().to_lowercase();
+
+        // TODO: Handle errors
         self.context.database.do_send(database::Execute {
             query: UPDATE_JOB_QUERY.to_owned(),
             params: vec![self.id.clone(), status, ended_at],
@@ -108,7 +145,7 @@ impl Witness {
             .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
         let ended_at = now();
-        let status = "failed".to_owned();
+        let status = JobStatus::Failed.to_string().to_lowercase();
         self.context.database.do_send(database::Execute {
             query: UPDATE_JOB_QUERY.to_owned(),
             params: vec![self.id.clone(), status, ended_at],

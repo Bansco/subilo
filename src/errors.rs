@@ -23,9 +23,6 @@ pub enum SubiloError {
     #[error("Failed to write log file, {}", source)]
     WriteLogFile { source: std::io::Error },
 
-    #[error("Failed to read file name")]
-    ReadFileName {},
-
     #[error("Failed to authenticate request, {}", source)]
     Authenticate { source: jsonwebtoken::errors::Error },
 }
