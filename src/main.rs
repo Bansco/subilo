@@ -185,12 +185,10 @@ async fn main() -> std::io::Result<()> {
     if let Some(token_matches) = matches.subcommand_matches("token") {
         debug!("Creating authentication token");
 
-        // It is safe to unwrap duration and permissions because the values have
-        // a clap default.
         let duration: i64 = token_matches
             .value_of("duration")
             .and_then(|duration| duration.parse().ok())
-            .unwrap();
+            .unwrap(); // Safe to unwrap, has clap default
 
         let permissions = token_matches
             .value_of("permissions")
@@ -202,8 +200,7 @@ async fn main() -> std::io::Result<()> {
                     .filter_map(Result::ok)
                     .collect()
             })
-            // It is safe to unwrap because the value has a clap default.
-            .unwrap();
+            .unwrap(); // Safe to unwrap, has clap default
 
         match auth::create_token(&secret, permissions, duration) {
             Ok(token) => println!("Bearer {}", token),
@@ -215,13 +212,10 @@ async fn main() -> std::io::Result<()> {
 
     match matches.subcommand_matches("serve") {
         Some(serve_matches) => {
-            // It is safe to unwrap config, port and logs_dir because the values
-            // have a clap default.
-
             let subilorc = serve_matches
                 .value_of("config")
                 .map(|path| shellexpand::tilde(&path).into_owned())
-                .unwrap();
+                .unwrap(); // Safe to unwrap, has clap default
 
             debug!("Parsing .subilorc file");
             // Parse only to validate the projects configuration
@@ -233,12 +227,12 @@ async fn main() -> std::io::Result<()> {
             let port: u16 = serve_matches
                 .value_of("port")
                 .and_then(|port| port.parse().ok())
-                .unwrap();
+                .unwrap(); // Safe to unwrap, has clap default
 
             let logs_dir = serve_matches
                 .value_of("logs-dir")
                 .map(|s| s.to_string())
-                .unwrap();
+                .unwrap(); // Safe to unwrap, has clap default
 
             let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
             let socket = SocketAddr::new(localhost, port);
