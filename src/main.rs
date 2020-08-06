@@ -72,6 +72,11 @@ async fn list_projects(ctx: web::Data<Context>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(projects_info))
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct WebhookResponse {
+    name: String,
+}
+
 #[post("/webhook")]
 async fn webhook(
     body: web::Json<WebhookPayload>,
@@ -101,8 +106,7 @@ async fn webhook(
     }
 
     match core::spawn_job(&ctx.logs_dir, project.unwrap()) {
-        // TODO: Migrate to JSON response.
-        Ok(job_id) => Ok(HttpResponse::Ok().body(format!("200 Ok\nJob: {}", job_id))),
+        Ok(job_id) => Ok(HttpResponse::Ok().json(WebhookResponse { name: job_id })),
         Err(err) => Ok(err.error_response()),
     }
 }
