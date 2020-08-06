@@ -42,7 +42,7 @@ impl actix_web::FromRequest for User {
                     .get("authorization")
                     .and_then(|header| header.to_str().ok())
                     .map(|s| s.replace("Bearer ", ""))
-                    .unwrap_or_else(|| "".to_string());
+                    .ok_or_else(|| SubiloError::MissingToken {})?;
 
                 decode::<Claims>(
                     &token,
