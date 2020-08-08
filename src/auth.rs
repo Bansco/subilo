@@ -33,29 +33,28 @@ impl actix_web::FromRequest for User {
     type Future = future::Ready<Result<Self, SubiloError>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let context = req.app_data::<actix_web::web::Data<Context>>();
-        if context.is_none() {
-            return future::err(SubiloError::ReadContext {});
-        }
+        let token_result = req
+            .app_data::<actix_web::web::Data<Context>>()
+            .ok_or(SubiloError::ReadContext {})
+            .and_then(|context| {
+                let token = req
+                    .headers()
+                    .get("authorization")
+                    .and_then(|header| header.to_str().ok())
+                    .map(|s| s.replace("Bearer ", ""))
+                    .ok_or_else(|| SubiloError::MissingToken {})?;
 
-        let token = req
-            .headers()
-            .get("authorization")
-            .unwrap()
-            .to_str()
-            .ok()
-            .unwrap()
-            .replace("Bearer ", "");
-
-        let token_result = decode::<Claims>(
-            &token,
-            &DecodingKey::from_secret(&context.unwrap().secret.as_bytes()),
-            &Validation::new(Algorithm::HS512),
-        );
+                decode::<Claims>(
+                    &token,
+                    &DecodingKey::from_secret(&context.secret.as_bytes()),
+                    &Validation::new(Algorithm::HS512),
+                )
+                .map_err(|err| SubiloError::Authenticate { source: err })
+            });
 
         match token_result {
             Ok(token) => future::ok(token.claims.user),
-            Err(err) => future::err(SubiloError::Authenticate { source: err }),
+            Err(err) => future::err(err),
         }
     }
 }
@@ -90,12 +89,17 @@ pub fn create_token(
     .map_err(|err| SubiloError::Authenticate { source: err })
 }
 
-// TODO: Migrate result to SubiloError and handle app data context unwrap.
 pub async fn validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, actix_web::Error> {
-    let context = req.app_data::<Context>().unwrap();
+    let context = req.app_data::<Context>().unwrap_or_else(|| {
+        actix_web::web::Data::new(Context {
+            subilorc: "./subilorc".to_string(),
+            logs_dir: "./logs".to_string(),
+            secret: "".to_string(),
+        })
+    });
 
     let config = req
         .app_data::<Config>()
