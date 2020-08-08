@@ -92,7 +92,7 @@ async fn webhook(
     let jobs_config: JobsConfig =
         toml::from_str(&subilorc_file).map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
 
-    debug!("Finding project by name ({})", &body.name);
+    debug!("Finding project by name '{}'", &body.name);
     let project = jobs_config
         .projects
         .into_iter()
@@ -134,23 +134,45 @@ async fn get_jobs(ctx: web::Data<Context>) -> HttpResponse {
     }
 }
 
-#[get("/jobs/{job_name}")]
-async fn get_job_by_name(
-    job_name: web::Path<String>,
+#[get("/jobs/{id}")]
+async fn get_job_by_id(id: web::Path<String>, ctx: web::Data<Context>) -> Result<HttpResponse> {
+    let query = database::Query {
+        query: job::GET_JOB_BY_ID_QUERY.to_owned(),
+        params: vec![id.to_string()],
+        map_result: |row| {
+            Ok(job::Job {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                status: row.get(2)?,
+                started_at: row.get(3)?,
+                ended_at: row.get(4)?,
+            })
+        },
+    };
+
+    let jobs = ctx
+        .database
+        .send(query)
+        .await
+        .map_err(|err| SubiloError::DatabaseActor { source: err })?
+        .map_err(|err| SubiloError::Database { source: err })?;
+
+    let res = HttpResponse::Ok().json(jobs.first());
+    Ok(res)
+}
+
+#[get("/jobs/{name}/log")]
+async fn get_job_log_by_name(
+    name: web::Path<String>,
     ctx: web::Data<Context>,
 ) -> Result<HttpResponse> {
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
-
-    let log_file_name = format!("{}/{}.log", &log_dir, job_name);
-    let metadata_file_name = format!("{}/{}.json", &log_dir, job_name);
+    let log_file_name = format!("{}/{}.log", &log_dir, name);
 
     let log = async_std::fs::read_to_string(log_file_name).await?;
-    let metadata = async_std::fs::read_to_string(metadata_file_name).await?;
+    let res = HttpResponse::Ok().body(log);
 
-    let metadata_json: core::Metadata = serde_json::from_str(&metadata)?;
-    let response = json!({ "log": log, "metadata": metadata_json });
-
-    Ok(HttpResponse::Ok().json(response))
+    Ok(res)
 }
 
 #[actix_rt::main]
@@ -263,7 +285,8 @@ async fn main() -> std::io::Result<()> {
                     .service(list_projects)
                     .service(webhook)
                     .service(get_jobs)
-                    .service(get_job_by_name)
+                    .service(get_job_by_id)
+                    .service(get_job_log_by_name)
             })
             .bind(socket);
 

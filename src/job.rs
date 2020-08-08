@@ -8,11 +8,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
 
-
 pub const CREATE_JOB_TABLE_QUERY: &str = "
     CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL,
+        name TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL,
         started_at TEXT NOT NULL,
         ended_at TEXT
@@ -33,6 +32,12 @@ pub const UPDATE_JOB_QUERY: &str = "
 pub const GET_ALL_JOBS_QUERY: &str = "
     SELECT id, name, status, started_at, ended_at
     FROM jobs
+";
+
+pub const GET_JOB_BY_ID_QUERY: &str = "
+    SELECT id, name, status, started_at, ended_at
+    FROM jobs
+    WHERE id = ?1
 ";
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -74,7 +79,7 @@ impl Witness {
         fs::create_dir_all(&context.logs_dir)
             .map_err(|err| SubiloError::CreateLogDir { source: err })?;
 
-        let mut log = fs::File::create(&job_name)
+        let mut log = fs::File::create(create_log_name(&job_name, &context.logs_dir))
             .map_err(|err| SubiloError::CreateLogFile { source: err })?;
 
         log.write_all(&project.description().as_bytes())
@@ -84,11 +89,14 @@ impl Witness {
         let status = JobStatus::Started.to_string().to_lowercase();
         let started_at = now();
 
-        // TODO: Handle errors
-        block_on(context.database.send(database::Execute {
+        let insert_job = context.database.send(database::Execute {
             query: INSERT_JOB_QUERY.to_owned(),
             params: vec![id.clone(), job_name, status, started_at],
-        }));
+        });
+
+        block_on(insert_job)
+            .map_err(|err| SubiloError::DatabaseActor { source: err })?
+            .map_err(|err| SubiloError::Database { source: err })?;
 
         Ok(Self { id, context, log })
     }
@@ -103,13 +111,15 @@ impl Witness {
         let ended_at = now();
         let status = JobStatus::Succeeded.to_string().to_lowercase();
 
-        // TODO: Handle errors
-        self.context.database.do_send(database::Execute {
+        let update_job = self.context.database.send(database::Execute {
             query: UPDATE_JOB_QUERY.to_owned(),
             params: vec![self.id.clone(), status, ended_at],
         });
 
-        Ok(())
+        block_on(update_job)
+            .map_err(|err| SubiloError::DatabaseActor { source: err })?
+            .map_err(|err| SubiloError::Database { source: err })
+            .map(|_res| ())
     }
 
     pub fn report_command_error_by_code(
@@ -130,13 +140,15 @@ impl Witness {
         let ended_at = now();
         let status = JobStatus::Failed.to_string().to_lowercase();
 
-        // TODO: Handle errors
-        self.context.database.do_send(database::Execute {
+        let update_job = self.context.database.send(database::Execute {
             query: UPDATE_JOB_QUERY.to_owned(),
             params: vec![self.id.clone(), status, ended_at],
         });
 
-        Ok(())
+        block_on(update_job)
+            .map_err(|err| SubiloError::DatabaseActor { source: err })?
+            .map_err(|err| SubiloError::Database { source: err })
+            .map(|_res| ())
     }
 
     pub fn report_command_error(&mut self, err: core::RunError) -> Result<(), SubiloError> {
@@ -146,12 +158,16 @@ impl Witness {
 
         let ended_at = now();
         let status = JobStatus::Failed.to_string().to_lowercase();
-        self.context.database.do_send(database::Execute {
+
+        let update_job = self.context.database.send(database::Execute {
             query: UPDATE_JOB_QUERY.to_owned(),
             params: vec![self.id.clone(), status, ended_at],
         });
 
-        Ok(())
+        block_on(update_job)
+            .map_err(|err| SubiloError::DatabaseActor { source: err })?
+            .map_err(|err| SubiloError::Database { source: err })
+            .map(|_res| ())
     }
 
     pub fn try_clone_log(&self) -> Result<std::fs::File, std::io::Error> {
@@ -161,4 +177,9 @@ impl Witness {
 
 fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+}
+
+pub fn create_log_name(job: &str, log_dir: &str) -> String {
+    let log_dir = shellexpand::tilde(&log_dir).into_owned();
+    format!("{}/{}.log", log_dir, job)
 }

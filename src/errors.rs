@@ -25,6 +25,12 @@ pub enum SubiloError {
 
     #[error("Failed to authenticate request, {}", source)]
     Authenticate { source: jsonwebtoken::errors::Error },
+
+    #[error("Failed to execute database query, {}", source)]
+    Database { source: rusqlite::Error },
+
+    #[error("Failed to communicate with database actor, {}", source)]
+    DatabaseActor { source: actix::MailboxError },
 }
 
 impl actix_web::error::ResponseError for SubiloError {

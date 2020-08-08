@@ -9,7 +9,7 @@ pub struct Database {
 
 impl Database {
     pub fn new(path: &str) -> Self {
-        let connection = Connection::open(path).expect("Failed to connecet to the database");
+        let connection = Connection::open(path).expect("Failed to connect to the database");
         Self { connection }
     }
 
@@ -32,8 +32,6 @@ impl Actor for Database {
     }
 }
 
-
-// TODO: Implement rusqlite into SubiloError 
 #[derive(Message)]
 #[rtype(result = "Result<usize>")]
 pub struct Execute {
