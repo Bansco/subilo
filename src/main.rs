@@ -114,7 +114,7 @@ async fn webhook(
 }
 
 #[get("/jobs")]
-async fn get_jobs(ctx: web::Data<Context>) -> HttpResponse {
+async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
     let query = database::Query {
         query: job::GET_ALL_JOBS_QUERY.to_owned(),
         params: vec![],
@@ -129,13 +129,13 @@ async fn get_jobs(ctx: web::Data<Context>) -> HttpResponse {
         },
     };
 
-    let jobs = ctx.database.send(query).await;
+    let jobs = ctx.database.send(query)
+        .await
+        .map_err(|err| SubiloError::DatabaseActor { source: err })?
+        .map_err(|err| SubiloError::Database { source: err })?;
 
-    // TODO: Handle errors
-    match jobs {
-        Ok(result) => HttpResponse::Ok().json(result.unwrap()),
-        _ => HttpResponse::Ok().finish(),
-    }
+    let res = HttpResponse::Ok().json(jobs);
+    Ok(res)
 }
 
 #[get("/jobs/{id}")]
