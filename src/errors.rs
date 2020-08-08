@@ -31,6 +31,9 @@ pub enum SubiloError {
 
     #[error("Failed to authenticate request, {}", source)]
     Authenticate { source: jsonwebtoken::errors::Error },
+
+    #[error("Token missing")]
+    MissingToken {},
 }
 
 impl actix_web::error::ResponseError for SubiloError {
@@ -43,6 +46,7 @@ impl actix_web::error::ResponseError for SubiloError {
     fn status_code(&self) -> StatusCode {
         match &self {
             SubiloError::Authenticate { source: _ } => StatusCode::UNAUTHORIZED,
+            SubiloError::MissingToken {} => StatusCode::UNAUTHORIZED,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
