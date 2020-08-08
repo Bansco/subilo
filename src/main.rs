@@ -129,7 +129,9 @@ async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
         },
     };
 
-    let jobs = ctx.database.send(query)
+    let jobs = ctx
+        .database
+        .send(query)
         .await
         .map_err(|err| SubiloError::DatabaseActor { source: err })?
         .map_err(|err| SubiloError::Database { source: err })?;
