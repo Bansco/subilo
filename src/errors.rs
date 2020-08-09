@@ -30,7 +30,7 @@ pub enum SubiloError {
     MissingToken {},
 
     #[error("Failed to execute database query, {}", source)]
-    Database { source: rusqlite::Error },
+    DatabaseQuery { source: rusqlite::Error },
 
     #[error("Failed to communicate with database actor, {}", source)]
     DatabaseActor { source: actix::MailboxError },
