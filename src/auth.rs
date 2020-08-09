@@ -93,13 +93,7 @@ pub async fn validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, actix_web::Error> {
-    let context = req.app_data::<Context>().unwrap_or_else(|| {
-        actix_web::web::Data::new(Context {
-            subilorc: "./subilorc".to_string(),
-            logs_dir: "./logs".to_string(),
-            secret: "".to_string(),
-        })
-    });
+    let context = req.app_data::<Context>().expect("Failed to read context on validator");
 
     let config = req
         .app_data::<Config>()
