@@ -1,44 +1,16 @@
-use crate::core;
-use crate::database;
-use crate::Context;
-use crate::SubiloError;
 use futures::executor::block_on;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
 
-pub const CREATE_JOB_TABLE_QUERY: &str = "
-    CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL UNIQUE,
-        status TEXT NOT NULL,
-        started_at TEXT NOT NULL,
-        ended_at TEXT
-    )
-";
+pub mod query;
 
-pub const INSERT_JOB_QUERY: &str = "
-    INSERT INTO jobs (id, name, status, started_at)
-    VALUES (?1, ?2, ?3, ?4)
-";
+use crate::core;
+use crate::database;
+use crate::Context;
+use crate::SubiloError;
 
-pub const UPDATE_JOB_QUERY: &str = "
-    UPDATE jobs
-    SET status = ?2, ended_at = ?3
-    WHERE id = ?1
-";
-
-pub const GET_ALL_JOBS_QUERY: &str = "
-    SELECT id, name, status, started_at, ended_at
-    FROM jobs
-";
-
-pub const GET_JOB_BY_ID_QUERY: &str = "
-    SELECT id, name, status, started_at, ended_at
-    FROM jobs
-    WHERE id = ?1
-";
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -66,7 +38,6 @@ pub struct Job {
 pub struct Witness {
     id: String,
     log: std::fs::File,
-    // TODO: Consider deref to actual value
     context: actix_web::web::Data<Context>,
 }
 
@@ -90,13 +61,13 @@ impl Witness {
         let started_at = now();
 
         let insert_job = context.database.send(database::Execute {
-            query: INSERT_JOB_QUERY.to_owned(),
+            query: query::INSERT_JOB.to_owned(),
             params: vec![id.clone(), job_name, status, started_at],
         });
 
         block_on(insert_job)
             .map_err(|err| SubiloError::DatabaseActor { source: err })?
-            .map_err(|err| SubiloError::Database { source: err })?;
+            .map_err(|err| SubiloError::DatabaseQuery { source: err })?;
 
         Ok(Self { id, context, log })
     }
@@ -112,13 +83,13 @@ impl Witness {
         let status = JobStatus::Succeeded.to_string().to_lowercase();
 
         let update_job = self.context.database.send(database::Execute {
-            query: UPDATE_JOB_QUERY.to_owned(),
+            query: query::UPDATE_JOB.to_owned(),
             params: vec![self.id.clone(), status, ended_at],
         });
 
         block_on(update_job)
             .map_err(|err| SubiloError::DatabaseActor { source: err })?
-            .map_err(|err| SubiloError::Database { source: err })
+            .map_err(|err| SubiloError::DatabaseQuery { source: err })
             .map(|_res| ())
     }
 
@@ -141,13 +112,13 @@ impl Witness {
         let status = JobStatus::Failed.to_string().to_lowercase();
 
         let update_job = self.context.database.send(database::Execute {
-            query: UPDATE_JOB_QUERY.to_owned(),
+            query: query::UPDATE_JOB.to_owned(),
             params: vec![self.id.clone(), status, ended_at],
         });
 
         block_on(update_job)
             .map_err(|err| SubiloError::DatabaseActor { source: err })?
-            .map_err(|err| SubiloError::Database { source: err })
+            .map_err(|err| SubiloError::DatabaseQuery { source: err })
             .map(|_res| ())
     }
 
@@ -160,13 +131,13 @@ impl Witness {
         let status = JobStatus::Failed.to_string().to_lowercase();
 
         let update_job = self.context.database.send(database::Execute {
-            query: UPDATE_JOB_QUERY.to_owned(),
+            query: query::UPDATE_JOB.to_owned(),
             params: vec![self.id.clone(), status, ended_at],
         });
 
         block_on(update_job)
             .map_err(|err| SubiloError::DatabaseActor { source: err })?
-            .map_err(|err| SubiloError::Database { source: err })
+            .map_err(|err| SubiloError::DatabaseQuery { source: err })
             .map(|_res| ())
     }
 

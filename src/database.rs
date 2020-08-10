@@ -15,7 +15,7 @@ impl Database {
 
     fn create_tables(&self) -> Result<usize> {
         self.connection
-            .execute(job::CREATE_JOB_TABLE_QUERY, NO_PARAMS)
+            .execute(job::query::CREATE_JOB_TABLE, NO_PARAMS)
     }
 }
 

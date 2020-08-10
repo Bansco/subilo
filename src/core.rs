@@ -94,10 +94,14 @@ pub fn run_project_deployment(
                 if output.status.success() {
                     witness.report_command_success()?
                 } else {
-                    witness.report_command_error_by_code(output.status.code())?
+                    witness.report_command_error_by_code(output.status.code())?;
+                    break;
                 }
             }
-            Err(err) => witness.report_command_error(err)?,
+            Err(err) => {
+                witness.report_command_error(err)?;
+                break;
+            },
         }
     }
 

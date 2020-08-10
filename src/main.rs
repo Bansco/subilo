@@ -116,7 +116,7 @@ async fn webhook(
 #[get("/jobs")]
 async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
     let query = database::Query {
-        query: job::GET_ALL_JOBS_QUERY.to_owned(),
+        query: job::query::GET_ALL_JOBS.to_owned(),
         params: vec![],
         map_result: |row| {
             Ok(job::Job {
@@ -134,7 +134,7 @@ async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
         .send(query)
         .await
         .map_err(|err| SubiloError::DatabaseActor { source: err })?
-        .map_err(|err| SubiloError::Database { source: err })?;
+        .map_err(|err| SubiloError::DatabaseQuery { source: err })?;
 
     let res = HttpResponse::Ok().json(jobs);
     Ok(res)
@@ -143,7 +143,7 @@ async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
 #[get("/jobs/{id}")]
 async fn get_job_by_id(id: web::Path<String>, ctx: web::Data<Context>) -> Result<HttpResponse> {
     let query = database::Query {
-        query: job::GET_JOB_BY_ID_QUERY.to_owned(),
+        query: job::query::GET_JOB_BY_ID.to_owned(),
         params: vec![id.to_string()],
         map_result: |row| {
             Ok(job::Job {
@@ -161,7 +161,7 @@ async fn get_job_by_id(id: web::Path<String>, ctx: web::Data<Context>) -> Result
         .send(query)
         .await
         .map_err(|err| SubiloError::DatabaseActor { source: err })?
-        .map_err(|err| SubiloError::Database { source: err })?;
+        .map_err(|err| SubiloError::DatabaseQuery { source: err })?;
 
     let res = HttpResponse::Ok().json(jobs.first());
     Ok(res)
