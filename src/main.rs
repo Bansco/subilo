@@ -39,6 +39,7 @@ pub struct ProjectsInfo {
     projects: Vec<core::ProjectInfo>,
 }
 
+#[derive(Clone)]
 pub struct Context {
     subilorc: String,
     logs_dir: String,
@@ -107,7 +108,8 @@ async fn webhook(
         return Ok(HttpResponse::NotFound().body("Not Found"));
     }
 
-    match core::spawn_job(project.unwrap(), ctx.clone()) {
+    let context = (*ctx.into_inner()).clone();
+    match core::spawn_job(project.unwrap(), context) {
         Ok(job_id) => Ok(HttpResponse::Ok().json(WebhookResponse { name: job_id })),
         Err(err) => Ok(err.error_response()),
     }

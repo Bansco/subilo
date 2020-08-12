@@ -101,17 +101,14 @@ pub fn run_project_deployment(
             Err(err) => {
                 witness.report_command_error(err)?;
                 break;
-            },
+            }
         }
     }
 
     Ok(())
 }
 
-pub fn spawn_job(
-    project: Project,
-    ctx: actix_web::web::Data<Context>,
-) -> Result<String, SubiloError> {
+pub fn spawn_job(project: Project, ctx: Context) -> Result<String, SubiloError> {
     let job_name = create_job_name(&project.name);
     let witness = job::Witness::new(job_name.clone(), project.clone(), ctx)?;
 

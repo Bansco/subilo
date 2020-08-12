@@ -11,7 +11,6 @@ use crate::database;
 use crate::Context;
 use crate::SubiloError;
 
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum JobStatus {
@@ -38,14 +37,14 @@ pub struct Job {
 pub struct Witness {
     id: String,
     log: std::fs::File,
-    context: actix_web::web::Data<Context>,
+    context: Context,
 }
 
 impl Witness {
     pub fn new(
         job_name: String,
         project: core::Project,
-        context: actix_web::web::Data<Context>,
+        context: Context,
     ) -> Result<Self, SubiloError> {
         fs::create_dir_all(&context.logs_dir)
             .map_err(|err| SubiloError::CreateLogDir { source: err })?;
