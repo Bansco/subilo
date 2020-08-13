@@ -260,9 +260,7 @@ async fn main() -> std::io::Result<()> {
                 .map(|s| s.to_string())
                 .unwrap(); // Safe to unwrap, has clap default
 
-            let database_path = serve_matches
-                .value_of("database")
-                .unwrap(); // Safe to unwrap, has clap default
+            let database_path = serve_matches.value_of("database").unwrap(); // Safe to unwrap, has clap default
 
             debug!("Connecting to the local database");
             let db = database::Database::create(|_ctx| database::Database::new(database_path));

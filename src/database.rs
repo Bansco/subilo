@@ -1,8 +1,8 @@
 use actix::prelude::*;
-use std::path::Path;
 use rusqlite::NO_PARAMS;
 use rusqlite::{Connection, Result};
 use std::fs;
+use std::path::Path;
 use std::process;
 
 use crate::job;
@@ -19,12 +19,16 @@ impl Database {
         let database_path = match database_path_buf.to_str() {
             Some(path) => path,
             None => {
-                eprintln!("Failed to create database path from {} + /subilo-database.db", path);
+                eprintln!(
+                    "Failed to create database path from {} + /subilo-database.db",
+                    path
+                );
                 process::exit(1);
-            },
+            }
         };
 
-        let connection = Connection::open(database_path).expect("Failed to connect to the database");
+        let connection =
+            Connection::open(database_path).expect("Failed to connect to the database");
         Self { connection }
     }
 
