@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
 
-pub mod query;
-
 use crate::core;
 use crate::database;
 use crate::Context;
 use crate::SubiloError;
+
+pub mod query;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]

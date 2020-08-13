@@ -185,7 +185,8 @@ async fn get_job_log_by_name(
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    let matches = cli::ask().get_matches();
+    let subilo_path = shellexpand::tilde("~/.subilo");
+    let matches = cli::ask(subilo_path.as_ref()).get_matches();
 
     let log_level = if matches.is_present("verbose") {
         "subilo=debug,actix_web=info"
@@ -259,8 +260,12 @@ async fn main() -> std::io::Result<()> {
                 .map(|s| s.to_string())
                 .unwrap(); // Safe to unwrap, has clap default
 
+            let database_path = serve_matches
+                .value_of("database")
+                .unwrap(); // Safe to unwrap, has clap default
+
             debug!("Connecting to the local database");
-            let db = database::Database::create(|_ctx| database::Database::new("database.db"));
+            let db = database::Database::create(|_ctx| database::Database::new(database_path));
 
             let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
             let socket = SocketAddr::new(localhost, port);

@@ -1,4 +1,4 @@
-pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
+pub fn ask<'a, 'b>(subilo_path: &'a str) -> clap::App<'a, 'b> {
     clap::App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
@@ -41,6 +41,14 @@ pub fn ask<'a, 'b>() -> clap::App<'a, 'b> {
                         .long("logs-dir")
                         .help("Custom logs directory")
                         .default_value("./logs")
+                        .takes_value(true),
+                )
+                .arg(
+                    clap::Arg::with_name("database")
+                        .short("d")
+                        .long("database")
+                        .help("Database directory")
+                        .default_value(subilo_path)
                         .takes_value(true),
                 ),
         )

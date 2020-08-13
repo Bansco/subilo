@@ -1,10 +1,11 @@
-use crate::errors::SubiloError;
-use crate::job;
-use crate::Context;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::{str, thread};
+
+use crate::errors::SubiloError;
+use crate::job;
+use crate::Context;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]

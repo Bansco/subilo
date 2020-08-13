@@ -1,7 +1,11 @@
-use crate::job;
 use actix::prelude::*;
+use std::path::Path;
 use rusqlite::NO_PARAMS;
 use rusqlite::{Connection, Result};
+use std::fs;
+use std::process;
+
+use crate::job;
 
 pub struct Database {
     connection: rusqlite::Connection,
@@ -9,7 +13,18 @@ pub struct Database {
 
 impl Database {
     pub fn new(path: &str) -> Self {
-        let connection = Connection::open(path).expect("Failed to connect to the database");
+        fs::create_dir_all(&path).expect("Failed to create database directory");
+
+        let database_path_buf = Path::new(path).join("subilo-database.db");
+        let database_path = match database_path_buf.to_str() {
+            Some(path) => path,
+            None => {
+                eprintln!("Failed to create database path from {} + /subilo-database.db", path);
+                process::exit(1);
+            },
+        };
+
+        let connection = Connection::open(database_path).expect("Failed to connect to the database");
         Self { connection }
     }
 
