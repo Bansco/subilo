@@ -62,8 +62,6 @@ impl Handler<Execute> for Database {
     type Result = Result<usize>;
 
     fn handle(&mut self, execute: Execute, _ctx: &mut Context<Self>) -> Self::Result {
-        println!("Entrando 5");
-
         self.connection
             .execute(execute.query.as_str(), execute.params)
     }
