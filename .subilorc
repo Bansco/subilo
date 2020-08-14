@@ -6,8 +6,8 @@ commands = [
   "ls",
   "pwd",
   # Add more sleep commands to do 'tail -f logs/...' and see output
-  "echo sleeping && sleep 5",
-  "echo done",
+  "echo 'sleeping for 5 seconds' && sleep 5",
+  "echo 'done'",
 ]
 
 [[projects]]
@@ -17,7 +17,7 @@ path = "~/"
 commands = [
   "ls",
   "pwd",
-  "echo sleeping && sleep 5",
+  "echo 'sleeping' && sleep 5",
   "exit 137",
 ]
 
@@ -28,6 +28,6 @@ path = "~/foo/bar"
 commands = [
   "ls",
   "pwd",
-  "echo sleeping && sleep 5",
+  "echo 'sleeping' && sleep 5",
   "exit 137",
 ]

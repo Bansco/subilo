@@ -41,7 +41,7 @@ pub struct Witness {
 }
 
 impl Witness {
-    pub fn new(
+    pub async fn new(
         job_name: String,
         project: core::Project,
         context: Context,
@@ -59,12 +59,13 @@ impl Witness {
         let status = JobStatus::Started.to_string().to_lowercase();
         let started_at = now();
 
-        let insert_job = context.database.send(database::Execute {
-            query: query::INSERT_JOB.to_owned(),
-            params: vec![id.clone(), job_name, status, started_at],
-        });
-
-        block_on(insert_job)
+        context
+            .database
+            .send(database::Execute {
+                query: query::INSERT_JOB.to_owned(),
+                params: vec![id.clone(), job_name, status, started_at],
+            })
+            .await
             .map_err(|err| SubiloError::DatabaseActor { source: err })?
             .map_err(|err| SubiloError::DatabaseQuery { source: err })?;
 

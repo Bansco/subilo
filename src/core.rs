@@ -109,9 +109,9 @@ pub fn run_project_deployment(
     Ok(())
 }
 
-pub fn spawn_job(project: Project, ctx: Context) -> Result<String, SubiloError> {
+pub async fn spawn_job(project: Project, ctx: Context) -> Result<String, SubiloError> {
     let job_name = create_job_name(&project.name);
-    let witness = job::Witness::new(job_name.clone(), project.clone(), ctx)?;
+    let witness = job::Witness::new(job_name.clone(), project.clone(), ctx).await?;
 
     debug!(
         "Spawning thread to run deployment for project {}",

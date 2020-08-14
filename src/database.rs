@@ -20,16 +20,16 @@ impl Database {
             Some(path) => path,
             None => {
                 eprintln!(
-                    "Failed to create database path from {} + /subilo-database.db",
+                    "Failed to create database connection path {} + /subilo-database.db",
                     path
                 );
                 process::exit(1);
             }
         };
 
-        let connection =
-            Connection::open(database_path).expect("Failed to connect to the database");
-        Self { connection }
+        Self {
+            connection: Connection::open(database_path).expect("Failed to connect to the database"),
+        }
     }
 
     fn create_tables(&self) -> Result<usize> {
@@ -61,7 +61,9 @@ pub struct Execute {
 impl Handler<Execute> for Database {
     type Result = Result<usize>;
 
-    fn handle(&mut self, execute: Execute, _ctx: &mut Context<Self>) -> Result<usize> {
+    fn handle(&mut self, execute: Execute, _ctx: &mut Context<Self>) -> Self::Result {
+        println!("Entrando 5");
+
         self.connection
             .execute(execute.query.as_str(), execute.params)
     }

@@ -109,7 +109,7 @@ async fn webhook(
     }
 
     let context = (*ctx.into_inner()).clone();
-    match core::spawn_job(project.unwrap(), context) {
+    match core::spawn_job(project.unwrap(), context).await {
         Ok(job_id) => Ok(HttpResponse::Ok().json(WebhookResponse { name: job_id })),
         Err(err) => Ok(err.error_response()),
     }
@@ -319,10 +319,12 @@ mod test {
 
     #[actix_rt::test]
     async fn test_webhook() {
+        let db = database::Database::create(|_ctx| database::Database::new("test"));
         let context = web::Data::new(super::Context {
             subilorc: "./.subilorc".to_owned(),
-            logs_dir: String::from("./logs"),
-            secret: String::from("secret"),
+            logs_dir: "./logs".to_owned(),
+            secret: "secret".to_owned(),
+            database: db,
         });
 
         let mut server = test::init_service(
@@ -331,11 +333,12 @@ mod test {
                 .wrap(middleware::Logger::default())
                 .app_data(context.clone())
                 .wrap(HttpAuthentication::bearer(auth::validator))
+                .wrap(Cors::new().supports_credentials().finish())
                 .service(webhook),
         )
         .await;
 
-        let payload = r#"{ "name": "success" }"#;
+        let payload = r#"{ "name": "test" }"#;
         let json: Value = serde_json::from_str(payload).unwrap();
 
         let req = test::TestRequest::post()
