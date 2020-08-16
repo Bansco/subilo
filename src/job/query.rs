@@ -1,13 +1,3 @@
-pub const CREATE_JOB_TABLE: &str = "
-    CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL UNIQUE,
-        status TEXT NOT NULL,
-        started_at TEXT NOT NULL,
-        ended_at TEXT
-    )
-";
-
 pub const INSERT_JOB: &str = "
     INSERT INTO jobs (id, name, status, started_at)
     VALUES (?1, ?2, ?3, ?4)

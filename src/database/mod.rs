@@ -1,11 +1,13 @@
 use actix::prelude::*;
-use rusqlite::NO_PARAMS;
 use rusqlite::{Connection, Result};
 use std::fs;
 use std::path::Path;
 use std::process;
 
-use crate::job;
+mod migrate {
+    use refinery::embed_migrations;
+    embed_migrations!("src/database");
+}
 
 pub struct Database {
     connection: rusqlite::Connection,
@@ -27,14 +29,10 @@ impl Database {
             }
         };
 
-        Self {
-            connection: Connection::open(database_path).expect("Failed to connect to the database"),
-        }
-    }
+        let connection =
+            Connection::open(database_path).expect("Failed to connect to the database");
 
-    fn create_tables(&self) -> Result<usize> {
-        self.connection
-            .execute(job::query::CREATE_JOB_TABLE, NO_PARAMS)
+        Self { connection }
     }
 }
 
@@ -42,8 +40,11 @@ impl Actor for Database {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Context<Self>) {
-        debug!("Connected to database");
-        self.create_tables().unwrap();
+        debug!("Connected to the database");
+        debug!("Running database migrations");
+        migrate::migrations::runner()
+            .run(&mut self.connection)
+            .expect("Failed to run database migrations");
     }
 
     fn stopped(&mut self, _ctx: &mut Context<Self>) {
