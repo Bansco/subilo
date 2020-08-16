@@ -34,6 +34,10 @@ impl Project {
     pub fn description(&self) -> String {
         format!("Project '{}' at {}\n", self.name, self.path)
     }
+
+    pub fn commands_to_json(&self) -> Result<String, serde_json::error::Error> {
+        serde_json::to_string(&self.commands)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]

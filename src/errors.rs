@@ -29,6 +29,9 @@ pub enum SubiloError {
     #[error("Token missing")]
     MissingToken {},
 
+    #[error("Failed to parse project commands to JSON format")]
+    ParseProjectCommands { source: serde_json::error::Error },
+
     #[error("Failed to execute database query, {}", source)]
     DatabaseQuery { source: rusqlite::Error },
 

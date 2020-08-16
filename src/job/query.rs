@@ -1,6 +1,6 @@
 pub const INSERT_JOB: &str = "
-    INSERT INTO jobs (id, name, status, started_at)
-    VALUES (?1, ?2, ?3, ?4)
+    INSERT INTO jobs (id, name, status, project, commands, started_at)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6)
 ";
 
 pub const UPDATE_JOB: &str = "
@@ -15,7 +15,7 @@ pub const GET_ALL_JOBS: &str = "
 ";
 
 pub const GET_JOB_BY_ID: &str = "
-    SELECT id, name, status, started_at, ended_at
+    SELECT id, name, status, project, commands, started_at, ended_at
     FROM jobs
     WHERE id = ?1
 ";

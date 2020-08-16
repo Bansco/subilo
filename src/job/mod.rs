@@ -26,12 +26,23 @@ impl std::fmt::Display for JobStatus {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct PartialJob {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    pub started_at: String,
+    pub ended_at: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Job {
     pub id: String,
     pub name: String,
     pub status: String,
     pub started_at: String,
     pub ended_at: String,
+    pub project: String,
+    pub commands: serde_json::Value,
 }
 
 pub struct Witness {
@@ -58,12 +69,23 @@ impl Witness {
         let id = nanoid!();
         let status = JobStatus::Started.to_string().to_lowercase();
         let started_at = now();
+        let project_name = project.name.clone();
+        let commands = project
+            .commands_to_json()
+            .map_err(|err| SubiloError::ParseProjectCommands { source: err })?;
 
         context
             .database
             .send(database::Execute {
                 query: query::INSERT_JOB.to_owned(),
-                params: vec![id.clone(), job_name, status, started_at],
+                params: vec![
+                    id.clone(),
+                    job_name,
+                    status,
+                    project_name,
+                    commands,
+                    started_at,
+                ],
             })
             .await
             .map_err(|err| SubiloError::DatabaseActor { source: err })?

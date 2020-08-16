@@ -121,7 +121,7 @@ async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
         query: job::query::GET_ALL_JOBS.to_owned(),
         params: vec![],
         map_result: |row| {
-            Ok(job::Job {
+            Ok(job::PartialJob {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 status: row.get(2)?,
@@ -148,12 +148,23 @@ async fn get_job_by_id(id: web::Path<String>, ctx: web::Data<Context>) -> Result
         query: job::query::GET_JOB_BY_ID.to_owned(),
         params: vec![id.to_string()],
         map_result: |row| {
+            let commands: String = row.get(4)?;
+            let json_commands = serde_json::from_slice(commands.as_bytes()).map_err(|_| {
+                rusqlite::Error::InvalidColumnType(
+                    4,
+                    "commands".to_owned(),
+                    rusqlite::types::Type::Text,
+                )
+            });
+
             Ok(job::Job {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 status: row.get(2)?,
-                started_at: row.get(3)?,
-                ended_at: row.get(4)?,
+                project: row.get(3)?,
+                commands: json_commands?,
+                started_at: row.get(5)?,
+                ended_at: row.get(6)?,
             })
         },
     };
