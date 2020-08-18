@@ -125,8 +125,9 @@ async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 status: row.get(2)?,
-                started_at: row.get(3)?,
-                ended_at: row.get(4)?,
+                project: row.get(3)?,
+                started_at: row.get(4)?,
+                ended_at: row.get(5)?,
             })
         },
     };

@@ -10,7 +10,7 @@ pub const UPDATE_JOB: &str = "
 ";
 
 pub const GET_ALL_JOBS: &str = "
-    SELECT id, name, status, started_at, ended_at
+    SELECT id, name, status, project, started_at, ended_at
     FROM jobs
 ";
 

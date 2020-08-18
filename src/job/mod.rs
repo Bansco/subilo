@@ -30,6 +30,7 @@ pub struct PartialJob {
     pub id: String,
     pub name: String,
     pub status: String,
+    pub project: String,
     pub started_at: String,
     pub ended_at: String,
 }
@@ -39,9 +40,9 @@ pub struct Job {
     pub id: String,
     pub name: String,
     pub status: String,
+    pub project: String,
     pub started_at: String,
     pub ended_at: String,
-    pub project: String,
     pub commands: serde_json::Value,
 }
 
