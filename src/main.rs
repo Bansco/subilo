@@ -1,10 +1,10 @@
+use actix::prelude::*;
 use actix_cors::Cors;
 use actix_web::error::ResponseError;
 use actix_web::middleware;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use async_std::fs as async_fs;
-use async_std::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -16,7 +16,9 @@ extern crate log;
 mod auth;
 mod cli;
 mod core;
+mod database;
 mod errors;
+mod job;
 
 use crate::errors::SubiloError;
 
@@ -37,11 +39,12 @@ pub struct ProjectsInfo {
     projects: Vec<core::ProjectInfo>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct Context {
+#[derive(Clone)]
+pub struct Context {
     subilorc: String,
     logs_dir: String,
     secret: String,
+    database: Addr<database::Database>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -95,7 +98,7 @@ async fn webhook(
     let jobs_config: JobsConfig =
         toml::from_str(&subilorc_file).map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
 
-    debug!("Finding project by name ({})", &body.name);
+    debug!("Finding project by name '{}'", &body.name);
     let project = jobs_config
         .projects
         .into_iter()
@@ -105,7 +108,8 @@ async fn webhook(
         return Ok(HttpResponse::NotFound().body("Not Found"));
     }
 
-    match core::spawn_job(&ctx.logs_dir, project.unwrap()) {
+    let context = (*ctx.into_inner()).clone();
+    match core::spawn_job(project.unwrap(), context).await {
         Ok(job_id) => Ok(HttpResponse::Ok().json(WebhookResponse { name: job_id })),
         Err(err) => Ok(err.error_response()),
     }
@@ -113,54 +117,88 @@ async fn webhook(
 
 #[get("/jobs")]
 async fn get_jobs(ctx: web::Data<Context>) -> Result<HttpResponse> {
-    let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
-    let mut logs: Vec<String> = Vec::new();
-    let mut dir = async_std::fs::read_dir(log_dir).await?;
+    let query = database::Query {
+        query: job::query::GET_ALL_JOBS.to_owned(),
+        params: vec![],
+        map_result: |row| {
+            Ok(job::PartialJob {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                status: row.get(2)?,
+                project: row.get(3)?,
+                started_at: row.get(4)?,
+                ended_at: row.get(5)?,
+            })
+        },
+    };
 
-    while let Some(entry) = dir.next().await {
-        let path = entry?.path();
+    let jobs = ctx
+        .database
+        .send(query)
+        .await
+        .map_err(|err| SubiloError::DatabaseActor { source: err })?
+        .map_err(|err| SubiloError::DatabaseQuery { source: err })?;
 
-        let file_name = match path.file_name() {
-            Some(name) => name
-                .to_owned()
-                .into_string()
-                .map_err(|_err| SubiloError::ReadFileName {})?,
-            None => {
-                error!("Failed to read file at path {:?}", path);
-                continue;
-            }
-        };
-
-        if file_name.ends_with(".json") {
-            logs.push(file_name.replace(".json", ""));
-        }
-    }
-
-    Ok(HttpResponse::Ok().json(logs))
+    let res = HttpResponse::Ok().json(jobs);
+    Ok(res)
 }
 
-#[get("/jobs/{job_name}")]
-async fn get_job_by_name(
-    job_name: web::Path<String>,
+#[get("/jobs/{id}")]
+async fn get_job_by_id(id: web::Path<String>, ctx: web::Data<Context>) -> Result<HttpResponse> {
+    let query = database::Query {
+        query: job::query::GET_JOB_BY_ID.to_owned(),
+        params: vec![id.to_string()],
+        map_result: |row| {
+            let commands: String = row.get(4)?;
+            let json_commands = serde_json::from_slice(commands.as_bytes()).map_err(|_| {
+                rusqlite::Error::InvalidColumnType(
+                    4,
+                    "commands".to_owned(),
+                    rusqlite::types::Type::Text,
+                )
+            });
+
+            Ok(job::Job {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                status: row.get(2)?,
+                project: row.get(3)?,
+                commands: json_commands?,
+                started_at: row.get(5)?,
+                ended_at: row.get(6)?,
+            })
+        },
+    };
+
+    let jobs = ctx
+        .database
+        .send(query)
+        .await
+        .map_err(|err| SubiloError::DatabaseActor { source: err })?
+        .map_err(|err| SubiloError::DatabaseQuery { source: err })?;
+
+    let res = HttpResponse::Ok().json(jobs.first());
+    Ok(res)
+}
+
+#[get("/jobs/{name}/log")]
+async fn get_job_log_by_name(
+    name: web::Path<String>,
     ctx: web::Data<Context>,
 ) -> Result<HttpResponse> {
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
-
-    let log_file_name = format!("{}/{}.log", &log_dir, job_name);
-    let metadata_file_name = format!("{}/{}.json", &log_dir, job_name);
+    let log_file_name = format!("{}/{}.log", &log_dir, name);
 
     let log = async_std::fs::read_to_string(log_file_name).await?;
-    let metadata = async_std::fs::read_to_string(metadata_file_name).await?;
+    let res = HttpResponse::Ok().body(log);
 
-    let metadata_json: core::Metadata = serde_json::from_str(&metadata)?;
-    let response = json!({ "log": log, "metadata": metadata_json });
-
-    Ok(HttpResponse::Ok().json(response))
+    Ok(res)
 }
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    let matches = cli::ask().get_matches();
+    let subilo_path = shellexpand::tilde("~/.subilo");
+    let matches = cli::ask(subilo_path.as_ref()).get_matches();
 
     let log_level = if matches.is_present("verbose") {
         "subilo=debug,actix_web=info"
@@ -234,18 +272,24 @@ async fn main() -> std::io::Result<()> {
                 .map(|s| s.to_string())
                 .unwrap(); // Safe to unwrap, has clap default
 
+            let database_path = serve_matches.value_of("database").unwrap(); // Safe to unwrap, has clap default
+
+            debug!("Connecting to the local database");
+            let db = database::Database::create(|_ctx| database::Database::new(database_path));
+
             let localhost = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
             let socket = SocketAddr::new(localhost, port);
             let context = web::Data::new(Context {
                 subilorc,
                 logs_dir,
                 secret,
+                database: db.clone(),
             });
 
             debug!("Creating logs directory at '{}'", &context.logs_dir);
             fs::create_dir_all(&context.logs_dir).expect("Failed to create logs directory");
 
-            debug!("Attempting to bind Subilo agent on {}", &socket);
+            debug!("Attempting to bind Subilo agent to {}", &socket);
             let server_bound = HttpServer::new(move || {
                 App::new()
                     .wrap(middleware::Compress::default())
@@ -258,7 +302,8 @@ async fn main() -> std::io::Result<()> {
                     .service(list_projects)
                     .service(webhook)
                     .service(get_jobs)
-                    .service(get_job_by_name)
+                    .service(get_job_by_id)
+                    .service(get_job_log_by_name)
             })
             .bind(socket);
 
@@ -286,10 +331,12 @@ mod test {
 
     #[actix_rt::test]
     async fn test_webhook() {
-        let context = web::Data::new(Context {
+        let db = database::Database::create(|_ctx| database::Database::new("test"));
+        let context = web::Data::new(super::Context {
             subilorc: "./.subilorc".to_owned(),
-            logs_dir: String::from("./logs"),
-            secret: String::from("secret"),
+            logs_dir: "./logs".to_owned(),
+            secret: "secret".to_owned(),
+            database: db,
         });
 
         let mut server = test::init_service(
@@ -298,11 +345,12 @@ mod test {
                 .wrap(middleware::Logger::default())
                 .app_data(context.clone())
                 .wrap(HttpAuthentication::bearer(auth::validator))
+                .wrap(Cors::new().supports_credentials().finish())
                 .service(webhook),
         )
         .await;
 
-        let payload = r#"{ "name": "success" }"#;
+        let payload = r#"{ "name": "test" }"#;
         let json: Value = serde_json::from_str(payload).unwrap();
 
         let req = test::TestRequest::post()

@@ -23,17 +23,20 @@ pub enum SubiloError {
     #[error("Failed to write log file, {}", source)]
     WriteLogFile { source: std::io::Error },
 
-    #[error("Failed to read file name")]
-    ReadFileName {},
-
-    #[error("Failed to serialize Metadata structure to JSON, {}", source)]
-    SerializeMetadataToJSON { source: serde_json::error::Error },
-
     #[error("Failed to authenticate request, {}", source)]
     Authenticate { source: jsonwebtoken::errors::Error },
 
     #[error("Token missing")]
     MissingToken {},
+
+    #[error("Failed to parse project commands to JSON format")]
+    ParseProjectCommands { source: serde_json::error::Error },
+
+    #[error("Failed to execute database query, {}", source)]
+    DatabaseQuery { source: rusqlite::Error },
+
+    #[error("Failed to communicate with database actor, {}", source)]
+    DatabaseActor { source: actix::MailboxError },
 }
 
 impl actix_web::error::ResponseError for SubiloError {

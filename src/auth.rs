@@ -30,7 +30,7 @@ impl User {
 impl actix_web::FromRequest for User {
     type Config = ();
     type Error = SubiloError;
-    type Future = future::Ready<Result<User, SubiloError>>;
+    type Future = future::Ready<Result<Self, SubiloError>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let token_result = req
