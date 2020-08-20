@@ -149,21 +149,13 @@ async fn get_job_by_id(id: web::Path<String>, ctx: web::Data<Context>) -> Result
         query: job::query::GET_JOB_BY_ID.to_owned(),
         params: vec![id.to_string()],
         map_result: |row| {
-            let commands: String = row.get(4)?;
-            let json_commands = serde_json::from_slice(commands.as_bytes()).map_err(|_| {
-                rusqlite::Error::InvalidColumnType(
-                    4,
-                    "commands".to_owned(),
-                    rusqlite::types::Type::Text,
-                )
-            });
-
+            let commands: serde_json::Value = row.get(4)?;
             Ok(job::Job {
+                commands,
                 id: row.get(0)?,
                 name: row.get(1)?,
                 status: row.get(2)?,
                 project: row.get(3)?,
-                commands: json_commands?,
                 started_at: row.get(5)?,
                 ended_at: row.get(6)?,
             })
