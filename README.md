@@ -1,6 +1,6 @@
 # Subilo
 
-[![Rust](https://github.com/huemul/subilo/workflows/Rust/badge.svg)](https://github.com/Huemul/subilo/actions?query=workflow%3ARust)
+[![Rust](https://github.com/huemul/subilo/workflows/Rust/badge.svg?branch=master)](https://github.com/Huemul/subilo/actions?query=workflow%3ARust)
 
 > 🛳 Deployment automation agent
 
