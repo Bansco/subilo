@@ -5,6 +5,9 @@ use actix_web::HttpResponse;
 #[derive(thiserror::Error, Debug)]
 #[error("...")]
 pub enum SubiloError {
+    #[error("Failed to execute spawned blocking thread")]
+    JoinHandle { source: tokio::task::JoinError },
+
     #[error("Failed to read application Context")]
     ReadContext {},
 

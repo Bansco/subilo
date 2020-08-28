@@ -4,11 +4,11 @@ use actix_web::error::ResponseError;
 use actix_web::middleware;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web_httpauth::middleware::HttpAuthentication;
-use async_std::fs as async_fs;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::{fs, process, str};
+use tokio::task::spawn_blocking;
 
 #[macro_use]
 extern crate log;
@@ -65,7 +65,7 @@ async fn info() -> Result<HttpResponse> {
 
 #[get("/projects")]
 async fn list_projects(ctx: web::Data<Context>) -> Result<HttpResponse> {
-    let subilorc_file = async_fs::read_to_string(&ctx.subilorc)
+    let subilorc_file = tokio::fs::read_to_string(&ctx.subilorc)
         .await
         .map_err(|err| SubiloError::ReadSubiloRC { source: err })?;
 
@@ -91,12 +91,14 @@ async fn webhook(
         return Ok(HttpResponse::Forbidden().body("Forbidden"));
     }
 
-    let subilorc_file = async_fs::read_to_string(&ctx.subilorc)
+    let subilorc_file = tokio::fs::read_to_string(&ctx.subilorc)
         .await
         .map_err(|err| SubiloError::ReadSubiloRC { source: err })?;
 
-    let jobs_config: JobsConfig =
-        toml::from_str(&subilorc_file).map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
+    let jobs_config: JobsConfig = spawn_blocking(move || toml::from_str(&subilorc_file))
+        .await
+        .map_err(|err| SubiloError::JoinHandle { source: err })?
+        .map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
 
     debug!("Finding project by name '{}'", &body.name);
     let project = jobs_config
@@ -181,7 +183,7 @@ async fn get_job_log_by_name(
     let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
     let log_file_name = format!("{}/{}.log", &log_dir, name);
 
-    let log = async_std::fs::read_to_string(log_file_name).await?;
+    let log = tokio::fs::read_to_string(log_file_name).await?;
     let res = HttpResponse::Ok().body(log);
 
     Ok(res)
