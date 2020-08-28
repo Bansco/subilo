@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::{fs, process, str};
-use tokio::task::spawn_blocking;
 
 #[macro_use]
 extern crate log;
@@ -95,10 +94,8 @@ async fn webhook(
         .await
         .map_err(|err| SubiloError::ReadSubiloRC { source: err })?;
 
-    let jobs_config: JobsConfig = spawn_blocking(move || toml::from_str(&subilorc_file))
-        .await
-        .map_err(|err| SubiloError::JoinHandle { source: err })?
-        .map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
+    let jobs_config: JobsConfig =
+        toml::from_str(&subilorc_file).map_err(|err| SubiloError::ParseSubiloRC { source: err })?;
 
     debug!("Finding project by name '{}'", &body.name);
     let project = jobs_config
