@@ -31,3 +31,8 @@ rusqlite = { version = "0.23.1", features = ["serde_json"] }
 nanoid = "0.3.0"
 refinery = { version = "0.3.0", features = ["rusqlite"] }
 tokio = { version = "0.2.22", features = ["fs"] }
+
+[dev-dependencies.cargo-husky]
+version = "1.5.0"
+default-features = false
+features = ["precommit-hook", "run-cargo-check", "run-cargo-test", "run-cargo-clippy", "run-cargo-fmt"]
