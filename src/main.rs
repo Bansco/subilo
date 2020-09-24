@@ -346,7 +346,7 @@ mod test {
 
         let req = test::TestRequest::post()
             .uri("/webhook")
-            .header("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJleHAiOjE1OTk2MzE5MzIsImlhdCI6MTU5NzAwMzkzMiwiaXNzIjoic3ViaWxvOmFnZW50IiwidXNlciI6eyJwZXJtaXNzaW9ucyI6WyJqb2I6d3JpdGUiXX19.bC0MsFvinPdjhQ9uVitub96PzHS7sN7FfE-PIHcETZKPfRy13_2w316Sh2_9pNEKywdvq5qjrAJuXdf3QlwIpg")
+            .header("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJleHAiOjE2MDM2MDA0MDcsImlhdCI6MTYwMDk3MjQwNywiaXNzIjoic3ViaWxvOmFnZW50IiwidXNlciI6eyJwZXJtaXNzaW9ucyI6WyJqb2I6d3JpdGUiXX19.mSQylmOBqXu87zX7mP-RMio2AbRGvZrj9v3Y4iN_rT4MdtEu4wwo2Ov4oblUv7rWHEh_lJTwROFSbVEnBNxHbg")
             .set_json(&json)
             .to_request();
 
