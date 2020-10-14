@@ -1,6 +1,6 @@
 [package]
 name = "subilo"
-version = "0.2.0"
+version = "0.2.1"
 description = "Tiny deployment agent"
 authors = ["gillchristian <gillchristiang@gmail.com>", "ndelvalle <nicolas.delvalle@gmail.com>"]
 edition = "2018"
