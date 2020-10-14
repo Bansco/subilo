@@ -172,18 +172,48 @@ async fn get_job_by_id(id: web::Path<String>, ctx: web::Data<Context>) -> Result
     Ok(res)
 }
 
-#[get("/jobs/{name}/log")]
+#[get("/jobs/{id}/log")]
 async fn get_job_log_by_name(
-    name: web::Path<String>,
+    id: web::Path<String>,
     ctx: web::Data<Context>,
 ) -> Result<HttpResponse> {
-    let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
-    let log_file_name = format!("{}/{}.log", &log_dir, name);
+    let query = database::Query {
+        query: job::query::GET_JOB_BY_ID.to_owned(),
+        params: vec![id.to_string()],
+        map_result: |row| {
+            let commands: serde_json::Value = row.get(4)?;
+            Ok(job::Job {
+                commands,
+                id: row.get(0)?,
+                name: row.get(1)?,
+                status: row.get(2)?,
+                project: row.get(3)?,
+                started_at: row.get(5)?,
+                ended_at: row.get(6)?,
+            })
+        },
+    };
 
-    let log = tokio::fs::read_to_string(log_file_name).await?;
-    let res = HttpResponse::Ok().body(log);
+    let job = ctx
+        .database
+        .send(query)
+        .await
+        .map_err(|err| SubiloError::DatabaseActor { source: err })?
+        .map_err(|err| SubiloError::DatabaseQuery { source: err })?;
 
-    Ok(res)
+    match job.first() {
+        Some(job) => {
+            let log_dir = shellexpand::tilde(&ctx.logs_dir).into_owned();
+            let log_file_name = format!("{}/{}.log", &log_dir, job.name);
+
+            let log = tokio::fs::read_to_string(log_file_name).await?;
+
+            let res = HttpResponse::Ok().body(log);
+
+            Ok(res)
+        }
+        None => Ok(HttpResponse::NotFound().body("Not Found")),
+    }
 }
 
 #[actix_rt::main]
