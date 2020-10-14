@@ -8,7 +8,7 @@ red="\033[31m"
 green="\033[32m"
 cyan="\033[36m"
 
-DOWNLOAD_URL="https://github.com/huemul/subilo/releases/download/v0.1.2/subilo-x86-64-linux"
+DOWNLOAD_URL="https://github.com/huemul/subilo/releases/download/v0.2.1/subilo-x86-64-linux"
 
 # the following function was brought from https://yarnpkg.com/install.sh
 # https://github.com/yarnpkg/yarn/blob/master/LICENSE
