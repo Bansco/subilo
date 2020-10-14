@@ -67,8 +67,8 @@ pub fn ask<'a, 'b>(subilo_path: &'a str) -> clap::App<'a, 'b> {
                     clap::Arg::with_name("duration")
                         .short("d")
                         .long("duration")
-                        .help("Token duration until expires in minutes")
-                        .default_value("43800")
+                        .help("Token duration until expires in minutes. Defaults to 1 year.")
+                        .default_value("525600") // 60 * 24 * 365
                         .takes_value(true),
                 )
         )
