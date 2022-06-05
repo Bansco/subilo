@@ -20,9 +20,7 @@ pub enum JobStatus {
 }
 
 impl std::fmt::Display for JobStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { write!(f, "{:?}", self) }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -64,7 +62,7 @@ impl Witness {
         let mut log = fs::File::create(create_log_name(&job_name, &context.logs_dir))
             .map_err(|err| SubiloError::CreateLogFile { source: err })?;
 
-        log.write_all(&project.description().as_bytes())
+        log.write_all(project.description().as_bytes())
             .map_err(|err| SubiloError::WriteLogFile { source: err })?;
 
         let id = nanoid!();
@@ -164,14 +162,10 @@ impl Witness {
             .map(|_res| ())
     }
 
-    pub fn try_clone_log(&self) -> Result<std::fs::File, std::io::Error> {
-        self.log.try_clone()
-    }
+    pub fn try_clone_log(&self) -> Result<std::fs::File, std::io::Error> { self.log.try_clone() }
 }
 
-fn now() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
-}
+fn now() -> String { chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true) }
 
 pub fn create_log_name(job: &str, log_dir: &str) -> String {
     let log_dir = shellexpand::tilde(&log_dir).into_owned();

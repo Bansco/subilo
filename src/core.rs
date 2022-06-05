@@ -31,9 +31,7 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn description(&self) -> String {
-        format!("Project '{}' at {}\n", self.name, self.path)
-    }
+    pub fn description(&self) -> String { format!("Project '{}' at {}\n", self.name, self.path) }
 
     pub fn commands_to_json(&self) -> Result<String, serde_json::error::Error> {
         serde_json::to_string(&self.commands)
@@ -90,11 +88,11 @@ pub fn run_project_deployment(
     for command in &project.commands {
         debug!("Running command: {}", &command);
 
-        witness.report_command(&command)?;
+        witness.report_command(command)?;
 
         let path = shellexpand::tilde(&project.path).into_owned();
 
-        match run_command(&path, &command, &witness) {
+        match run_command(&path, command, &witness) {
             Ok(output) => {
                 if output.status.success() {
                     witness.report_command_success()?
@@ -141,7 +139,7 @@ pub async fn spawn_job(project: Project, ctx: Context) -> Result<String, SubiloE
 }
 
 pub fn create_job_name(repository: &str) -> String {
-    let repository = repository.replace("/", "-");
+    let repository = repository.replace('/', "-");
     let now = Utc::now().format("%Y-%m-%d--%H-%M-%S").to_string();
     format!("{}_{}", repository, now)
 }

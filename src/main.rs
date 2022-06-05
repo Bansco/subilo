@@ -52,9 +52,7 @@ struct WebhookPayload {
 }
 
 #[get("/healthz")]
-async fn healthz() -> impl Responder {
-    HttpResponse::Ok().body("200 Ok")
-}
+async fn healthz() -> impl Responder { HttpResponse::Ok().body("200 Ok") }
 
 #[get("/info")]
 async fn info() -> Result<HttpResponse> {
@@ -315,9 +313,9 @@ async fn main() -> std::io::Result<()> {
                 App::new()
                     .wrap(middleware::Compress::default())
                     .wrap(middleware::Logger::default())
+                    .wrap(Cors::new().supports_credentials().finish())
                     .app_data(context.clone())
                     .wrap(HttpAuthentication::bearer(auth::validator))
-                    .wrap(Cors::new().supports_credentials().finish())
                     .service(healthz)
                     .service(info)
                     .service(list_projects)
@@ -376,7 +374,7 @@ mod test {
 
         let req = test::TestRequest::post()
             .uri("/webhook")
-            .header("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJleHAiOjE2MDM2MDA0MDcsImlhdCI6MTYwMDk3MjQwNywiaXNzIjoic3ViaWxvOmFnZW50IiwidXNlciI6eyJwZXJtaXNzaW9ucyI6WyJqb2I6d3JpdGUiXX19.mSQylmOBqXu87zX7mP-RMio2AbRGvZrj9v3Y4iN_rT4MdtEu4wwo2Ov4oblUv7rWHEh_lJTwROFSbVEnBNxHbg")
+            .header("Authorization", "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJleHAiOjE2ODU5Mzk3MjksImlhdCI6MTY1NDQwMzcyOSwiaXNzIjoic3ViaWxvOmFnZW50IiwidXNlciI6eyJwZXJtaXNzaW9ucyI6WyJqb2I6d3JpdGUiXX19.2cOhb7wIDzNsXmS1TgKGTIUi8-FoJMDPnRNJNsY8YPuPMovpP4cfn1gts0lvzi-jcHGiTiLiEHGTqbhAeSqjGg")
             .set_json(&json)
             .to_request();
 

@@ -42,11 +42,11 @@ impl actix_web::FromRequest for User {
                     .get("authorization")
                     .and_then(|header| header.to_str().ok())
                     .map(|s| s.replace("Bearer ", ""))
-                    .ok_or_else(|| SubiloError::MissingToken {})?;
+                    .ok_or(SubiloError::MissingToken {})?;
 
                 decode::<Claims>(
                     &token,
-                    &DecodingKey::from_secret(&context.secret.as_bytes()),
+                    &DecodingKey::from_secret(context.secret.as_bytes()),
                     &Validation::new(Algorithm::HS512),
                 )
                 .map_err(|err| SubiloError::Authenticate { source: err })
@@ -104,8 +104,8 @@ pub async fn validator(
 
     let token = credentials.token();
     let token_result = decode::<Claims>(
-        &token,
-        &DecodingKey::from_secret(&context.secret.as_bytes()),
+        token,
+        &DecodingKey::from_secret(context.secret.as_bytes()),
         &Validation::new(Algorithm::HS512),
     );
 
