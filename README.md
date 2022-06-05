@@ -72,7 +72,7 @@ Download the latest [released binary](https://github.com/huemul/subilo/releases)
 and add executable permissions:
 
 ```
-wget -O subilo "https://subilo.gateway.scarf.sh/v0.1.2/x86-64-linux"
+wget -O subilo "https://subilo.gateway.scarf.sh/v0.2.1/x86-64-linux"
 chmod +x subilo
 ```
 
